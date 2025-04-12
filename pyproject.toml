@@ -1,0 +1,184 @@
+# https://peps.python.org/pep-0517/
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+# https://hatch.pypa.io/latest/config/metadata/
+[tool.hatch.version]
+source = "vcs"
+
+# https://hatch.pypa.io/latest/config/build/#file-selection
+[tool.hatch.build.targets.sdist]
+include = ["/src", "/tests"]
+
+[tool.hatch.build.targets.wheel]
+only-include = ["src"]
+sources = ["src"]
+
+# https://peps.python.org/pep-0621/
+[project]
+name = "pymmcore-openscan"
+description = "A set of Qt-based widgets for OpenScan onto the pymmcore-plus model"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "BSD 3-Clause License" }
+authors = [
+    { email = "gjselzer@wisc.edu", name = "Gabriel Selzer" },
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: X11 Applications :: Qt",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: BSD License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python",
+    "Topic :: Software Development :: Widget Sets",
+    "Topic :: System :: Hardware :: Hardware Drivers",
+    "Topic :: System :: Hardware",
+    "Topic :: Utilities",
+    "Typing :: Typed",
+]
+dynamic = ["version"]
+dependencies = [
+    'pymmcore-plus[cli] >=0.11.0',
+    'qtpy >=2.0',
+    'superqt[iconify, quantity] >=0.7.1',
+]
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+# extras
+# https://peps.python.org/pep-0621/#dependencies-optional-dependencies
+[project.optional-dependencies]
+pyqt5 = ["PyQt5"]
+pyside2 = ["PySide2"]
+pyqt6 = ["PyQt6"]
+pyside6 = ["PySide6==6.7.3"] # pretty hard to find a good match here...
+
+test = [
+    "pytest>=6.0",
+    "pytest-cov",
+    "pytest-qt",
+    "PyYAML",
+    "zarr<3",
+]
+
+dev = [
+    "cruft",
+    "ruff",
+    "ipython",
+    "mypy",
+    "pdbpp",
+    "pre-commit",
+    "pytest-cov",
+    "pytest",
+    "rich",
+    "pyqt6",
+]
+docs = [
+    "mkdocs",
+    "mkdocs-material",
+    "mkdocstrings-python",
+    "mkdocs-literate-nav",
+    "mkdocs-gen-files",
+    "mkdocs-section-index",
+    "mkdocs-video",
+]
+
+[project.urls]
+Homepage = "https://github.com/pymmcore-plus/pymmcore-openscan"
+"Source Code" = "https://github.com/pymmcore-plus/pymmcore-openscan"
+Documentation = "https://pymmcore-plus.github.io/pymmcore-openscan"
+
+# https://beta.ruff.rs/docs/rules/
+[tool.ruff]
+line-length = 88
+target-version = "py39"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+pydocstyle = { convention = "numpy" }
+select = [
+    "E",    # style errors
+    "F",    # flakes
+    "W",    # warnings
+    "D",    # pydocstyle
+    "D417", # Missing argument descriptions in Docstrings
+    "I",    # isort
+    "UP",   # pyupgrade
+    "C4",   # flake8-comprehensions
+    "B",    # flake8-bugbear
+    "A001", # flake8-builtins
+    "RUF",  # ruff-specific rules
+    "TID",  # tidy
+    "TCH",  # typecheck
+]
+ignore = [
+    "D100", # Missing docstring in public module
+    "D401", # First line should be in imperative mood
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*.py" = ["D", "SLF"]
+
+[tool.ruff.format]
+docstring-code-format = true
+
+# https://docs.pytest.org/en/6.2.x/customize.html
+[tool.pytest.ini_options]
+minversion = "6.0"
+testpaths = ["tests"]
+filterwarnings = [
+    "error",
+    "ignore:distutils Version classes are deprecated",
+    "ignore:Failed to disconnect:RuntimeWarning:",
+    # warning, but not error, that will show up on useq<0.3.3
+]
+
+# https://mypy.readthedocs.io/en/stable/config_file.html
+[tool.mypy]
+files = "src/**/"
+strict = true
+disallow_any_generics = false
+disallow_subclassing_any = false
+show_error_codes = true
+pretty = true
+plugins = ["pydantic.mypy"]
+
+
+# https://coverage.readthedocs.io/en/6.4/config.html
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "@overload",
+    "except ImportError",
+    "raise AssertionError",
+    "if __name__ == .__main__.:",
+    "raise NotImplementedError",
+]
+show_missing = true
+[tool.coverage.run]
+source = ['pymmcore_openscan']
+
+# https://github.com/mgedmin/check-manifest#configuration
+[tool.check-manifest]
+ignore = [
+    ".github_changelog_generator",
+    ".pre-commit-config.yaml",
+    "tests/**/*",
+    "docs/**/*",
+    "mkdocs.yml",
+    "examples/**/*",
+    "CHANGELOG.md",
+]
+
+[tool.typos.default]
+extend-ignore-identifiers-re = ["(?i)nd2?.*", "(?i)ome", "FO(Vs?)?"]
