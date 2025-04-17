@@ -19,10 +19,11 @@ if TYPE_CHECKING:
 
     from pymmcore_plus import CMMCorePlus, Device
 
+
 class _DCC_ConnectorWidget(QWidget):
     """Controls for a single DCC connector."""
 
-    def __init__(self, mmcore:CMMCorePlus, device: Device, i: int) -> None:
+    def __init__(self, mmcore: CMMCorePlus, device: Device, i: int) -> None:
         super().__init__()
         self._mmcore = mmcore
         self._dev = device
@@ -73,7 +74,7 @@ class _DCC_ConnectorWidget(QWidget):
         self._set_property("GainHV", value)
 
     def _set_property(self, suffix: str, value: Any) -> None:
-        self._mmcore.setProperty( self._dev.label, f"C{self._idx}_{suffix}", value)
+        self._mmcore.setProperty(self._dev.label, f"C{self._idx}_{suffix}", value)
 
     def _on_property_changed(self, prop: str, value: Any) -> None:
         if prop == f"C{self._idx}_Plus12V":
@@ -94,13 +95,14 @@ class _DCC_ConnectorWidget(QWidget):
     def _on_overload(self, overloaded: bool) -> None:
         self._overload.setEnabled(overloaded)
         self._overload.setText("Overloaded" if overloaded else "")
-        self._overload.setIcon(self._overload_icon if overloaded else self._overload_icon_hidden)
+        icon = self._overload_icon if overloaded else self._overload_icon_hidden
+        self._overload.setIcon(icon)
 
 
 class _DCC_CoolingWidget(QWidget):
     """Controls for DCC cooling."""
 
-    def __init__(self, mmcore:CMMCorePlus, device: Device) -> None:
+    def __init__(self, mmcore: CMMCorePlus, device: Device) -> None:
         super().__init__()
         self._mmcore = mmcore
         self._dev = device
@@ -146,7 +148,7 @@ class _DCC_CoolingWidget(QWidget):
         self._set_property("CoolerVoltage", value)
 
     def _set_property(self, suffix: str, value: Any) -> None:
-        self._mmcore.setProperty( self._dev.label, f"C3_{suffix}", value)
+        self._mmcore.setProperty(self._dev.label, f"C3_{suffix}", value)
 
     def _on_property_changed(self, prop: str, value: Any) -> None:
         if prop == "C3_Cooling":
@@ -156,14 +158,17 @@ class _DCC_CoolingWidget(QWidget):
         elif prop == "C3_CoolerVoltage":
             self._voltage.setValue(value)
 
+
 class _DCC_ModuleWidget(QWidget):
     """Controls for a DCC Module."""
 
-    def __init__(self, mmcore:CMMCorePlus, i: int) -> None:
+    def __init__(self, mmcore: CMMCorePlus, i: int) -> None:
         super().__init__()
         self._mmcore = mmcore
         self._dev = mmcore.getDeviceObject(f"DCCModule{i}")
-        self._connectors = {i: _DCC_ConnectorWidget(mmcore, self._dev, i+1) for i in range(3)}
+        self._connectors = {
+            i: _DCC_ConnectorWidget(mmcore, self._dev, i + 1) for i in range(3)
+        }
         self._cooling = _DCC_CoolingWidget(mmcore, self._dev)
 
         self._clr_overloads = QPushButton("Clear Overloads")
@@ -211,7 +216,7 @@ class _DCC_ModuleWidget(QWidget):
 class DCCWidget(QWidget):
     """Widget controlling a Becker-Hickl Detector Control Card (DCC)."""
 
-    def __init__(self, mmcore:CMMCorePlus):
+    def __init__(self, mmcore: CMMCorePlus):
         super().__init__()
         self._layout = QVBoxLayout(self)
         for dev in mmcore.getLoadedDevices():
@@ -226,5 +231,3 @@ class DCCWidget(QWidget):
             if mmcore.getProperty(self._hub.label, f"UseModule{i}") == "Yes":
                 self._modules[i] = module_wdg = _DCC_ModuleWidget(mmcore, i)
                 self._layout.addWidget(module_wdg)
-
-

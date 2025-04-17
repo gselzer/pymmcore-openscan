@@ -7,4 +7,4 @@ try:
 except PackageNotFoundError:
     __version__ = "uninstalled"
 
-__all__ = []
+__all__: list[str] = []
