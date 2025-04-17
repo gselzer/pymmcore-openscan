@@ -3,7 +3,7 @@ from typing import Any, cast
 
 from pymmcore_plus import CMMCorePlus, DeviceProperty
 from qtpy.QtCore import QLineF, Qt, QTimer
-from qtpy.QtGui import QBrush, QColor, QPalette, QPen, QResizeEvent
+from qtpy.QtGui import QBrush, QColor, QPalette, QPen
 from qtpy.QtWidgets import (
     QAbstractSpinBox,
     QApplication,
@@ -12,12 +12,13 @@ from qtpy.QtWidgets import (
     QGraphicsRectItem,
     QGraphicsScene,
     QGraphicsSimpleTextItem,
-    QGraphicsView,
     QHBoxLayout,
     QLineEdit,
     QSizePolicy,
     QWidget,
 )
+
+from pymmcore_openscan._util import ResizingGraphicsView
 
 MAX_POWER = 8
 BAR_WIDTH = 10
@@ -99,19 +100,6 @@ class _RateCounter:
         self._rect.update()
 
 
-class _GraphicsFrame(QGraphicsView):
-    def __init__(self, scene: QGraphicsScene) -> None:
-        super().__init__(scene)
-        self._scene = scene
-        self.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
-
-    def resizeEvent(self, event: QResizeEvent | None) -> Any:
-        self.fitInView(
-            self._scene.itemsBoundingRect(), Qt.AspectRatioMode.KeepAspectRatio
-        )
-        return super().resizeEvent(event)
-
-
 class SPCRateCounters(QWidget):
     """Widget displaying SPC Rate Counters."""
 
@@ -173,7 +161,8 @@ class SPCRateCounters(QWidget):
                 BAR_HEIGHT - y - handle.boundingRect().height() / 2,
             )
 
-        self._view = _GraphicsFrame(self._scene)
+        self._view = ResizingGraphicsView(self._scene)
+        self._view.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
 
         self.spinboxes = QFormLayout()
         for counter in self._rate_counters:
