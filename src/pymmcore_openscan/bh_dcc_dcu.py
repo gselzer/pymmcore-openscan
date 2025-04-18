@@ -8,6 +8,7 @@ from qtpy.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QPushButton,
+    QSizePolicy,
     QStyle,
     QStyleOptionButton,
     QVBoxLayout,
@@ -26,6 +27,8 @@ if TYPE_CHECKING:
 # This is why the setText method is overridden already. The reason we don't do it now is
 # because we'd want a mechanism for saving the button names.
 class _BitButton(QPushButton):
+    """Button toggling one bit of a DCC/DCU Digital Output."""
+
     def __init__(self, device: Device, idx: int, bit: int) -> None:
         super().__init__()
         self._device = device
@@ -50,6 +53,7 @@ class _BitButton(QPushButton):
                 QStyle.ContentsType.CT_PushButton, opt, textSize, self
             )
         )
+        self.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
 
     def _on_toggled(self, checked: bool) -> None:
         if checked:
@@ -59,7 +63,7 @@ class _BitButton(QPushButton):
         return
 
 
-class _DCC_DigitalOutWidget(QWidget):
+class _DigitalOutWidget(QWidget):
     """A single DCC connector providing digital output."""
 
     def __init__(self, mmcore: CMMCorePlus, device: Device, i: int) -> None:
@@ -90,8 +94,8 @@ class _DCC_DigitalOutWidget(QWidget):
                     btn.setChecked(bool(btn.value & value))
 
 
-class _DCC_GainWidget(QWidget):
-    """A single DCC connector providing PMT gain."""
+class _GainWidget(QWidget):
+    """A single DCC/DCU connector providing PMT gain."""
 
     def __init__(self, mmcore: CMMCorePlus, device: Device, i: int) -> None:
         super().__init__()
@@ -99,17 +103,22 @@ class _DCC_GainWidget(QWidget):
         self._dev = device
         self._idx = i
 
-        self._label = QLabel(f"Connector {i}:")
-
-        self._overload = QPushButton(text="Overloaded")
-        self._overload_icon = QIconifyIcon("si:error-line", color="red")
-        self._overload_icon_hidden = QIconifyIcon("si:error-line", color="transparent")
-        self._set_overload(False)
+        self._label = QLabel(f"Connector {i} Gain/HV:")
 
         self._gain = QLabeledDoubleSlider(Qt.Orientation.Horizontal)
         self._gain.setRange(0, 100)
         self._gain.setValue(0)
         self._gain._label.setSuffix("%")
+
+        # The Overload button serves two goals:
+        # (a) notifies users of controller overload
+        # (b) on DCUs, enables the user to clear the overload
+        self._overload = QPushButton(text="Overloaded")
+        self._overload_icon = QIconifyIcon("si:error-line", color="red")
+        self._overload_icon_hidden = QIconifyIcon("si:error-line", color="transparent")
+        self._set_overload(False)
+        if f"C{i}_ClearOverload" in self._dev.propertyNames():
+            self._overload.clicked.connect(self._clear_overload)
 
         self._layout = QHBoxLayout(self)
         self._layout.addWidget(self._label)
@@ -132,6 +141,9 @@ class _DCC_GainWidget(QWidget):
         elif prop == f"C{self._idx}_Overloaded":
             self._set_overload(value == "Yes")
 
+    def _clear_overload(self) -> None:
+        self._set_property("ClearOverload", "Clear")
+
     def _set_overload(self, overloaded: bool) -> None:
         icon = self._overload_icon if overloaded else self._overload_icon_hidden
         self._overload.setIcon(icon)
@@ -139,19 +151,19 @@ class _DCC_GainWidget(QWidget):
         self._overload.setStyleSheet(f"QPushButton {{color: {color};}}")
 
 
-class _DCC_ModuleWidget(QWidget):
-    """Controls for a DCC Module."""
+class _Module(QWidget):
+    """Controls for a DCC/DCU Module."""
 
-    def __init__(self, mmcore: CMMCorePlus, i: int) -> None:
+    def __init__(self, mmcore: CMMCorePlus, dev_name: str) -> None:
         super().__init__()
         self._mmcore = mmcore
-        self._dev = mmcore.getDeviceObject(f"DCCModule{i}")
-        self._connectors: dict[int, QWidget] = {}
-        for i in range(1, 4):
+        self._dev = mmcore.getDeviceObject(dev_name)
+        self._connectors: list[QWidget] = []
+        for i in range(1, 6):
             if f"C{i}_GainHV" in self._dev.propertyNames():
-                self._connectors[i] = _DCC_GainWidget(mmcore, self._dev, i)
+                self._connectors.append(_GainWidget(mmcore, self._dev, i))
             elif f"C{i}_DigitalOut" in self._dev.propertyNames():
-                self._connectors[i] = _DCC_DigitalOutWidget(mmcore, self._dev, i)
+                self._connectors.append(_DigitalOutWidget(mmcore, self._dev, i))
 
         self._cooling = QCheckBox("Enable Cooling")
         self._enable_outs = QCheckBox("Enable Outputs")
@@ -163,8 +175,8 @@ class _DCC_ModuleWidget(QWidget):
         self._module_ctrls.addWidget(self._clr_overloads)
 
         self._layout = QVBoxLayout(self)
-        for i in range(1, 4):
-            self._layout.addWidget(self._connectors[i])
+        for connector in self._connectors:
+            self._layout.addWidget(connector)
         self._layout.addLayout(self._module_ctrls)
 
         self._dev.propertyChanged.connect(self._on_property_changed)
@@ -177,9 +189,19 @@ class _DCC_ModuleWidget(QWidget):
         self._mmcore.setProperty(self._dev.label, prop, "Clear")
 
     def _on_enable_outs(self, enabled: bool) -> None:
-        prop = "EnableOutputs"
+        # Some or all of these properties will be on the device
+        enable_properties = [
+            "EnableOutputs",
+            "C1_EnableOutputs",
+            "C2_EnableOutputs",
+            "C3_EnableOutputs",
+            "C4_EnableOutputs",
+            "C5_EnableOutputs",
+        ]
         value = "On" if enabled else "Off"
-        self._mmcore.setProperty(self._dev.label, prop, value)
+        for prop in enable_properties:
+            if prop in self._dev.propertyNames():
+                self._mmcore.setProperty(self._dev.label, prop, value)
 
     def _on_enable_cooling(self, enabled: bool) -> None:
         prop = "C3_Cooling"
@@ -195,21 +217,34 @@ class _DCC_ModuleWidget(QWidget):
                 self._cooling.setChecked(value == "On")
 
 
-class DCCWidget(QWidget):
-    """Widget controlling a Becker-Hickl Detector Control Card (DCC)."""
-
-    def __init__(self, mmcore: CMMCorePlus):
+class _DetectorWidget(QWidget):
+    def __init__(self, mmcore: CMMCorePlus, prefix: str, numModules: int) -> None:
         super().__init__()
         self._layout = QVBoxLayout(self)
         for dev in mmcore.getLoadedDevices():
-            if mmcore.getDeviceName(dev) == "DCCHub":
+            if mmcore.getDeviceName(dev) == f"{prefix}Hub":
                 self._hub = mmcore.getDeviceObject(dev)
                 break
         if self._hub is None:
-            raise RuntimeError("No DCC device found")
+            raise RuntimeError(f"No {prefix} device found")
 
         self._modules = {}
-        for i in range(1, 9):
+        for i in range(1, numModules + 1):
             if mmcore.getProperty(self._hub.label, f"UseModule{i}") == "Yes":
-                self._modules[i] = module_wdg = _DCC_ModuleWidget(mmcore, i)
+                module_wdg = _Module(mmcore, f"{prefix}Module{i}")
+                self._modules[i] = module_wdg
                 self._layout.addWidget(module_wdg)
+
+
+class DCUWidget(_DetectorWidget):
+    """Widget controlling a Becker-Hickl Detector Control Unit (DCU)."""
+
+    def __init__(self, mmcore: CMMCorePlus):
+        super().__init__(mmcore, "DCU", 3)
+
+
+class DCCWidget(_DetectorWidget):
+    """Widget controlling a Becker-Hickl Detector Control Card (DCC)."""
+
+    def __init__(self, mmcore: CMMCorePlus):
+        super().__init__(mmcore, "DCC", 8)
