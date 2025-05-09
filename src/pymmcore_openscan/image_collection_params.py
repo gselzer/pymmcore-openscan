@@ -10,10 +10,12 @@ from superqt import QLabeledDoubleSlider
 class ImageCollectionParameters(QWidget):
     """Widget controlling OpenScan Image Collection parameters."""
 
-    def __init__(self, mmcore: CMMCorePlus) -> None:
-        super().__init__()
-        self._mmcore = mmcore
-        self._dev = mmcore.getDeviceObject("OSc-LSM")
+    def __init__(
+        self, *, parent: QWidget | None = None, mmcore: CMMCorePlus | None = None
+    ) -> None:
+        super().__init__(parent)
+        self._mmcore = mmcore or CMMCorePlus.instance()
+        self._dev = self._mmcore.getDeviceObject("OSc-LSM")
 
         # -- Widgets --
         self._res_prop = self._dev.getPropertyObject("LSM-Resolution")
