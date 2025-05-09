@@ -103,10 +103,12 @@ class _RateCounter:
 class SPCRateCounters(QWidget):
     """Widget displaying SPC Rate Counters."""
 
-    def __init__(self, mmcore: CMMCorePlus) -> None:
-        super().__init__()
-        self._mmcore = mmcore
-        self._dev = mmcore.getDeviceObject("OSc-LSM")
+    def __init__(
+        self, *, parent: QWidget | None = None, mmcore: CMMCorePlus | None = None
+    ) -> None:
+        super().__init__(parent=parent)
+        self._mmcore = mmcore or CMMCorePlus.instance()
+        self._dev = self._mmcore.getDeviceObject("OSc-LSM")
         self._scene = QGraphicsScene()
 
         if "BH-TCSPC-RateCounter-Sync" not in self._dev.propertyNames():

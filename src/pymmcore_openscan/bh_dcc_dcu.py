@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, cast
 
+from pymmcore_plus import CMMCorePlus
 from qtpy.QtCore import Qt
 from qtpy.QtWidgets import (
     QCheckBox,
@@ -20,7 +21,7 @@ from superqt.utils import signals_blocked
 if TYPE_CHECKING:
     from typing import Any
 
-    from pymmcore_plus import CMMCorePlus, Device
+    from pymmcore_plus import Device
 
 
 # TODO: In the future, we likely want to add the ability to rename these buttons.
@@ -219,15 +220,20 @@ class _Module(QWidget):
 
 
 class _DetectorWidget(QWidget):
-    def __init__(self, mmcore: CMMCorePlus, prefix: str, numModules: int) -> None:
-        super().__init__()
+    def __init__(
+        self,
+        prefix: str,
+        numModules: int,
+        parent: QWidget | None = None,
+        mmcore: CMMCorePlus | None = None,
+    ) -> None:
+        super().__init__(parent=parent)
         self._layout = QVBoxLayout(self)
-        for dev in mmcore.getLoadedDevices():
-            if mmcore.getDeviceName(dev) == f"{prefix}Hub":
-                self._hub = mmcore.getDeviceObject(dev)
-                break
-        if self._hub is None:
-            raise RuntimeError(f"No {prefix} device found")
+        mmcore = mmcore or CMMCorePlus.instance()
+        # Note: Only one DCC/DCU hub is allowed at one time.
+        if f"{prefix}Hub" not in mmcore.getLoadedDevices():
+            raise RuntimeError(f"{prefix}Hub not loaded")
+        self._hub = mmcore.getDeviceObject(f"{prefix}Hub")
 
         self._modules = {}
         for i in range(1, numModules + 1):
@@ -240,12 +246,16 @@ class _DetectorWidget(QWidget):
 class DCUWidget(_DetectorWidget):
     """Widget controlling a Becker-Hickl Detector Control Unit (DCU)."""
 
-    def __init__(self, mmcore: CMMCorePlus):
-        super().__init__(mmcore, "DCU", 3)
+    def __init__(
+        self, parent: QWidget | None = None, mmcore: CMMCorePlus | None = None
+    ):
+        super().__init__("DCU", 3, parent=parent, mmcore=mmcore)
 
 
 class DCCWidget(_DetectorWidget):
     """Widget controlling a Becker-Hickl Detector Control Card (DCC)."""
 
-    def __init__(self, mmcore: CMMCorePlus):
-        super().__init__(mmcore, "DCC", 8)
+    def __init__(
+        self, parent: QWidget | None = None, mmcore: CMMCorePlus | None = None
+    ):
+        super().__init__("DCC", 8, parent=parent, mmcore=mmcore)

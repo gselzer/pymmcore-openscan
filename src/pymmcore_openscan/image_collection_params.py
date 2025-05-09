@@ -20,6 +20,8 @@ class ImageCollectionParameters(QWidget):
         self._resolution = QComboBox()
         for val in self._res_prop.allowedValues():
             self._resolution.addItem(f"{val} x {val}")
+        starting_value = self._res_prop.value
+        self._resolution.setCurrentText(f"{starting_value} x {starting_value}")
 
         self._zoom_prop = self._dev.getPropertyObject("LSM-ZoomFactor")
         self._zoom = QLabeledDoubleSlider()
@@ -27,13 +29,11 @@ class ImageCollectionParameters(QWidget):
         self._zoom.setValue(self._zoom_prop.value)
 
         self._px_rate_prop = self._dev.getPropertyObject("LSM-PixelRateHz")
-        self._rates_choices = sorted(
-            ((f"{float(v) / 1e6} μs", v) for v in self._px_rate_prop.allowedValues()),
-            key=lambda x: float(x[1]),
-        )
+        self._rates = sorted(self._px_rate_prop.allowedValues(), key=lambda x: float(x))
         self._px_rate = QComboBox()
-        for text, _ in self._rates_choices:
-            self._px_rate.addItem(text)
+        for rate in self._rates:
+            self._px_rate.addItem(f"{float(rate) / 1e6} μs", rate)
+        self._px_rate.setCurrentText(f"{float(self._px_rate_prop.value) / 1e6} μs")
 
         # -- Layout --
         self._layout = QFormLayout(self)
@@ -56,5 +56,5 @@ class ImageCollectionParameters(QWidget):
 
     def _update_px_rate(self, idx: int) -> None:
         self._mmcore.setProperty(
-            self._dev.label, "LSM-PixelRateHz", self._rates_choices[idx][1]
+            self._dev.label, "LSM-PixelRateHz", self._px_rate.itemData(idx)
         )
