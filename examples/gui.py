@@ -15,7 +15,7 @@ def _create_dcc(parent: QWidget) -> QWidget:
 
 WidgetActionInfo(
     key="bh_dcc",
-    text="Becker & Hickl DCC",
+    text="Becker && Hickl DCC",
     icon="mdi-light:format-list-bulleted",
     create_widget=_create_dcc,
 )
@@ -28,7 +28,7 @@ def _create_dcu(parent: QWidget) -> QWidget:
 
 WidgetActionInfo(
     key="bh_dcu",
-    text="Becker & Hickl DCU",
+    text="Becker && Hickl DCU",
     icon="mdi-light:format-list-bulleted",
     create_widget=_create_dcu,
 )
@@ -41,7 +41,7 @@ def _create_spc_rate_counter(parent: QWidget) -> QWidget:
 
 WidgetActionInfo(
     key="bh_spc",
-    text="Becker & Hickl SPC Rate Counter",
+    text="Becker && Hickl SPC Rate Counter",
     icon="carbon:meter",
     create_widget=_create_spc_rate_counter,
 )
