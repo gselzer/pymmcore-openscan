@@ -79,8 +79,10 @@ class ImageCollectionParameters(QWidget):
             px_rate_prop = self._dev.getPropertyObject("LSM-PixelRateHz")
             self._rates = sorted(px_rate_prop.allowedValues(), key=lambda x: float(x))
             for rate in self._rates:
-                self._px_rate.addItem(f"{float(rate) / 1e6} μs", rate)
-            self._px_rate.setCurrentText(f"{float(px_rate_prop.value) / 1e6} μs")
+                rate_us = (1 / float(rate)) * 1e6
+                self._px_rate.addItem(f"{round(rate_us, 1)} μs", rate)
+            current_rate_us = (1 / float(px_rate_prop.value)) * 1e6
+            self._px_rate.setCurrentText(f"{round(current_rate_us, 1)} μs")
 
     def _update_resolution(self, idx: int) -> None:
         if self._dev is not None and self._res_prop is not None:
