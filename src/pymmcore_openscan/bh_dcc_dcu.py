@@ -50,7 +50,7 @@ class _BitButton(QPushButton):
         opt.initFrom(self)
         opt.rect.setSize(textSize)
         self.setMinimumSize(
-            cast(QStyle, self.style()).sizeFromContents(
+            cast("QStyle", self.style()).sizeFromContents(
                 QStyle.ContentsType.CT_PushButton, opt, textSize, self
             )
         )
@@ -229,16 +229,29 @@ class _DetectorWidget(QWidget):
     ) -> None:
         super().__init__(parent=parent)
         self._layout = QVBoxLayout(self)
-        mmcore = mmcore or CMMCorePlus.instance()
-        # Note: Only one DCC/DCU hub is allowed at one time.
-        if f"{prefix}Hub" not in mmcore.getLoadedDevices():
-            raise RuntimeError(f"{prefix}Hub not loaded")
-        self._hub = mmcore.getDeviceObject(f"{prefix}Hub")
+        self._prefix = prefix
+        self._numModules = numModules
+        self._mmcore = mmcore or CMMCorePlus.instance()
+        # Each Detector Widget has a number of modules
+        self._modules: dict[int, QWidget] = {}
 
-        self._modules = {}
-        for i in range(1, numModules + 1):
-            if mmcore.getProperty(self._hub.label, f"UseModule{i}") == "Yes":
-                module_wdg = _Module(mmcore, f"{prefix}Module{i}")
+        self._mmcore.events.systemConfigurationLoaded.connect(self.try_enable)
+        self.try_enable()
+
+    def try_enable(self) -> None:
+        # Clear old Widgets
+        for module in self._modules.values():
+            self._layout.removeWidget(module)
+        self._modules.clear()
+        if f"{self._prefix}Hub" not in self._mmcore.getLoadedDevices():
+            # Detector not loaded - nothing to do.
+            return
+
+        # Make new widgets
+        self._dev = self._mmcore.getDeviceObject(f"{self._prefix}Hub")
+        for i in range(1, self._numModules + 1):
+            if self._mmcore.getProperty(self._dev.label, f"UseModule{i}") == "Yes":
+                module_wdg = _Module(self._mmcore, f"{self._prefix}Module{i}")
                 self._modules[i] = module_wdg
                 self._layout.addWidget(module_wdg)
 

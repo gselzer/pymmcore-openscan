@@ -102,7 +102,7 @@ class _RateCounter:
         new_height: float
         if not self._prop:
             new_height = 0
-            self.spinbox.setValue(0)
+            self.spinbox.clear()
         else:
             val = self._prop.value
             self.spinbox.setValue(val)
@@ -176,6 +176,7 @@ class SPCRateCounters(QWidget):
         self._view = ResizingGraphicsView(self._scene)
         self._view.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
 
+        # TODO: Set maximum width here
         self.spinboxes = QFormLayout()
         for counter in self._rate_counters:
             self.spinboxes.addRow(counter._lbl, counter.spinbox)
