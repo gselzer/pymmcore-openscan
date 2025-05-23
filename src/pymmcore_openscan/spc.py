@@ -56,14 +56,14 @@ class _RateCounter:
     def __init__(
         self,
         scene: QGraphicsScene,
-        prop: DeviceProperty,
         lbl: str,
         color: QColor | Qt.GlobalColor,
         x: int,
     ) -> None:
         self._scene = scene
-        self._prop = prop
-        self.lbl = lbl
+        self._lbl = lbl
+        self._prop: DeviceProperty | None = None
+        self._prop_name = f"BH-TCSPC-RateCounter-{self._lbl}"
         self._x = x
 
         self.spinbox = _StandardFormSpinBox()
@@ -79,19 +79,37 @@ class _RateCounter:
         )
 
         self._lbl_item = cast("QGraphicsSimpleTextItem", self._scene.addSimpleText(lbl))
-        # self._lbl_item.setBrush(self._brush)
+        self._lbl_item.setBrush(self._brush)
         self._lbl_item.setPos(
             self._x + (BAR_WIDTH - self._lbl_item.boundingRect().width()) / 2,
             BAR_HEIGHT + self._lbl_item.boundingRect().height() / 2,
         )
 
+        self.update()
+
+    def try_enable(self, mmcore: CMMCorePlus) -> None:
+        self._prop = None
+
+        if "OSc-LSM" in mmcore.getLoadedDevices():
+            dev = mmcore.getDeviceObject("OSc-LSM")
+            if self._prop_name in dev.propertyNames():
+                self._prop = dev.getPropertyObject(self._prop_name)
+
+        self.spinbox.setEnabled(self._prop is None)
+        self.update()
+
     def update(self) -> None:
-        val = self._prop.value
-        self.spinbox.setValue(val)
-        # The below function linearly maps the logarithm of the value.
-        # 10 -> 0
-        # 1e8 -> 100
-        new_height = BAR_HEIGHT / (MAX_POWER - 1) * (log10(val) - 1)
+        new_height: float
+        if not self._prop:
+            new_height = 0
+            self.spinbox.setValue(0)
+        else:
+            val = self._prop.value
+            self.spinbox.setValue(val)
+            # The below function linearly maps the logarithm of the value.
+            # 10 -> 0
+            # 1e8 -> 100
+            new_height = BAR_HEIGHT / (MAX_POWER - 1) * (log10(max(val, 10)) - 1)
 
         r = self._rect.rect()
         r.setY(BAR_HEIGHT - new_height)
@@ -108,37 +126,29 @@ class SPCRateCounters(QWidget):
     ) -> None:
         super().__init__(parent=parent)
         self._mmcore = mmcore or CMMCorePlus.instance()
-        self._dev = self._mmcore.getDeviceObject("OSc-LSM")
         self._scene = QGraphicsScene()
-
-        if "BH-TCSPC-RateCounter-Sync" not in self._dev.propertyNames():
-            raise RuntimeError("SPC Rate Counters not available.")
 
         self._rate_counters = (
             _RateCounter(
                 self._scene,
-                self._dev.getPropertyObject("BH-TCSPC-RateCounter-Sync"),
                 "Sync",
                 Qt.GlobalColor.green,
                 10,
             ),
             _RateCounter(
                 self._scene,
-                self._dev.getPropertyObject("BH-TCSPC-RateCounter-CFD"),
                 "CFD",
                 Qt.GlobalColor.black,
                 40,
             ),
             _RateCounter(
                 self._scene,
-                self._dev.getPropertyObject("BH-TCSPC-RateCounter-TAC"),
                 "TAC",
                 Qt.GlobalColor.blue,
                 70,
             ),
             _RateCounter(
                 self._scene,
-                self._dev.getPropertyObject("BH-TCSPC-RateCounter-ADC"),
                 "ADC",
                 Qt.GlobalColor.red,
                 100,
@@ -168,7 +178,7 @@ class SPCRateCounters(QWidget):
 
         self.spinboxes = QFormLayout()
         for counter in self._rate_counters:
-            self.spinboxes.addRow(counter.lbl, counter.spinbox)
+            self.spinboxes.addRow(counter._lbl, counter.spinbox)
 
         self._layout = QHBoxLayout(self)
         self._layout.addWidget(self._view)
@@ -178,6 +188,13 @@ class SPCRateCounters(QWidget):
         t.setInterval(100)
         t.timeout.connect(self._pollRates)
         t.start()
+
+        self._mmcore.events.systemConfigurationLoaded.connect(self._on_conf_loaded)
+        self._on_conf_loaded()
+
+    def _on_conf_loaded(self) -> None:
+        for counter in self._rate_counters:
+            counter.try_enable(self._mmcore)
 
     def _pollRates(self) -> None:
         for counter in self._rate_counters:
