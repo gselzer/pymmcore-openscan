@@ -46,6 +46,7 @@ classifiers = [
 ]
 dynamic = ["version"]
 dependencies = [
+    'pydantic-settings',
     'pymmcore-plus[cli] >=0.11.0',
     'qtpy >=2.0',
     'superqt[iconify, quantity] >=0.7.1',

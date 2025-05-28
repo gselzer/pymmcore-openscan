@@ -18,6 +18,8 @@ from qtpy.QtWidgets import (
 from superqt import QIconifyIcon, QLabeledDoubleSlider
 from superqt.utils import signals_blocked
 
+from pymmcore_openscan._settings import Settings
+
 if TYPE_CHECKING:
     from typing import Any
 
@@ -73,7 +75,12 @@ class _DigitalOutWidget(QWidget):
         self._dev = device
         self._idx = i
 
-        self._label = QLabel(f"Connector {i}:")
+        # Ensure this device has a label
+        lbl_map = Settings.instance().bh_dcc_connector_labels
+        lbl_map.setdefault(device.name(), {})
+        lbl_map[device.name()].setdefault(i, f"Connector {i}")
+        # Get label from settings
+        self._label = QLabel(lbl_map[device.name()][i])
 
         self._bit_btns = [_BitButton(device=device, idx=i, bit=b) for b in range(8)]
 
@@ -104,7 +111,12 @@ class _GainWidget(QWidget):
         self._dev = device
         self._idx = i
 
-        self._label = QLabel(f"Connector {i} Gain/HV:")
+        # Ensure this device has a label
+        lbl_map = Settings.instance().bh_dcc_connector_labels
+        lbl_map.setdefault(device.name(), {})
+        lbl_map[device.name()].setdefault(i, f"Connector {i} Gain/HV:")
+        # Get label from settings
+        self._label = QLabel(lbl_map[device.name()][i])
 
         self._gain = QLabeledDoubleSlider(Qt.Orientation.Horizontal)
         self._gain.setRange(0, 100)
@@ -251,7 +263,8 @@ class _DetectorWidget(QWidget):
         self._dev = self._mmcore.getDeviceObject(f"{self._prefix}Hub")
         for i in range(1, self._numModules + 1):
             if self._mmcore.getProperty(self._dev.label, f"UseModule{i}") == "Yes":
-                module_wdg = _Module(self._mmcore, f"{self._prefix}Module{i}")
+                dev_name = f"{self._prefix}Module{i}"
+                module_wdg = _Module(self._mmcore, dev_name)
                 self._modules[i] = module_wdg
                 self._layout.addWidget(module_wdg)
 
