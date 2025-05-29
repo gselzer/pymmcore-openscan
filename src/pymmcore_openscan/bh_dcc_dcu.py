@@ -3,11 +3,16 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, cast
 
 from pymmcore_plus import CMMCorePlus
-from qtpy.QtCore import Qt
+from qtpy.QtCore import QPoint, Qt
+from qtpy.QtGui import QCursor
 from qtpy.QtWidgets import (
     QCheckBox,
+    QDialog,
+    QFormLayout,
+    QFrame,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QPushButton,
     QSizePolicy,
     QStyle,
@@ -24,6 +29,29 @@ if TYPE_CHECKING:
     from typing import Any
 
     from pymmcore_plus import Device
+
+
+class QtPopup(QDialog):
+    """A generic popup window."""
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setModal(False)  # if False, then clicking anywhere else closes it
+        self.setWindowFlags(Qt.WindowType.Popup | Qt.WindowType.FramelessWindowHint)
+
+        self.frame = QFrame(self)
+        layout = QVBoxLayout(self)
+        layout.addWidget(self.frame)
+        layout.setContentsMargins(0, 0, 0, 0)
+
+    def show_above_mouse(self, *args: Any) -> None:
+        """Show popup dialog above the mouse cursor position."""
+        pos = QCursor().pos()  # mouse position
+        szhint = self.sizeHint()
+        pos -= QPoint(szhint.width() // 2, szhint.height() + 14)
+        self.move(pos)
+        self.resize(self.sizeHint())
+        self.show()
 
 
 # TODO: In the future, we likely want to add the ability to rename these buttons.
@@ -76,11 +104,20 @@ class _DigitalOutWidget(QWidget):
         self._idx = i
 
         # Ensure this device has a label
-        lbl_map = Settings.instance().bh_dcc_connector_labels
-        lbl_map.setdefault(device.name(), {})
-        lbl_map[device.name()].setdefault(i, f"Connector {i}")
+        lbl_map = Settings.instance().bh_dcc_dcu_connector_labels
+        lbl_map.setdefault(self._dev.name(), {})
+        lbl_map[self._dev.name()].setdefault(self._idx, f"Connector {self._idx}")
         # Get label from settings
-        self._label = QLabel(lbl_map[device.name()][i])
+        self._label = QLabel(lbl_map[self._dev.name()][self._idx])
+        self._label.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self._label.customContextMenuRequested.connect(self._edit_label)
+
+        self._label_popup = QtPopup()
+        self._label_edit = QLineEdit(self._label.text())
+        self._label_edit.editingFinished.connect(self._update_label)
+
+        layout = QFormLayout(self._label_popup.frame)
+        layout.addRow("Label", self._label_edit)
 
         self._bit_btns = [_BitButton(device=device, idx=i, bit=b) for b in range(8)]
 
@@ -90,6 +127,17 @@ class _DigitalOutWidget(QWidget):
             self._layout.addWidget(btn)
 
         self._dev.propertyChanged.connect(self._on_property_changed)
+
+    def _edit_label(self) -> None:
+        self._label_popup.show_above_mouse()
+
+    def _update_label(self) -> None:
+        lbl = self._label_edit.text()
+        self._label.setText(lbl)
+
+        lbl_map = Settings.instance().bh_dcc_dcu_connector_labels
+        lbl_map[self._dev.name()][self._idx] = lbl
+        Settings.instance().flush()
 
     def _set_property(self, suffix: str, value: Any) -> None:
         self._mmcore.setProperty(self._dev.label, f"C{self._idx}_{suffix}", value)
@@ -112,12 +160,22 @@ class _GainWidget(QWidget):
         self._idx = i
 
         # Ensure this device has a label
-        lbl_map = Settings.instance().bh_dcc_connector_labels
+        lbl_map = Settings.instance().bh_dcc_dcu_connector_labels
         lbl_map.setdefault(device.name(), {})
-        lbl_map[device.name()].setdefault(i, f"Connector {i} Gain/HV:")
+        lbl_map[device.name()].setdefault(i, f"Connector {i}")
         # Get label from settings
         self._label = QLabel(lbl_map[device.name()][i])
+        self._label.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self._label.customContextMenuRequested.connect(self._edit_label)
 
+        self._label_popup = QtPopup()
+        self._label_edit = QLineEdit(self._label.text())
+        self._label_edit.editingFinished.connect(self._update_label)
+
+        layout = QFormLayout(self._label_popup.frame)
+        layout.addRow("Label", self._label_edit)
+
+        self._gain_lbl = QLabel("Gain/HV:")
         self._gain = QLabeledDoubleSlider(Qt.Orientation.Horizontal)
         self._gain.setRange(0, 100)
         self._gain.setValue(0)
@@ -136,6 +194,7 @@ class _GainWidget(QWidget):
 
         self._layout = QHBoxLayout(self)
         self._layout.addWidget(self._label)
+        self._layout.addWidget(self._gain_lbl)
         self._layout.addWidget(self._gain)
         self._layout.addWidget(self._overload)
 
@@ -163,6 +222,17 @@ class _GainWidget(QWidget):
         self._overload.setIcon(icon)
         color = "black" if overloaded else "transparent"
         self._overload.setStyleSheet(f"QPushButton {{color: {color};}}")
+
+    def _edit_label(self) -> None:
+        self._label_popup.show_above_mouse()
+
+    def _update_label(self) -> None:
+        lbl = self._label_edit.text()
+        self._label.setText(lbl)
+
+        lbl_map = Settings.instance().bh_dcc_dcu_connector_labels
+        lbl_map[self._dev.name()][self._idx] = lbl
+        Settings.instance().flush()
 
 
 class _Module(QWidget):

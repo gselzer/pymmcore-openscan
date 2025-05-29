@@ -140,8 +140,8 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    bh_dcc_connector_labels: dict[str, dict[int, str]] = {}
-    """Labels for DCC unit connectors."""
+    bh_dcc_dcu_connector_labels: dict[str, dict[int, str]] = {}
+    """Labels for DCC/DCU unit connectors."""
 
     @classmethod
     def instance(cls) -> Settings:
