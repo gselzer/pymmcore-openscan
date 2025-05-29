@@ -103,21 +103,8 @@ class _DigitalOutWidget(QWidget):
         self._dev = device
         self._idx = i
 
-        # Ensure this device has a label
-        lbl_map = Settings.instance().bh_dcc_dcu_connector_labels
-        lbl_map.setdefault(self._dev.name(), {})
-        lbl_map[self._dev.name()].setdefault(self._idx, f"Connector {self._idx}")
         # Get label from settings
-        self._label = QLabel(lbl_map[self._dev.name()][self._idx])
-        self._label.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        self._label.customContextMenuRequested.connect(self._edit_label)
-
-        self._label_popup = QtPopup()
-        self._label_edit = QLineEdit(self._label.text())
-        self._label_edit.editingFinished.connect(self._update_label)
-
-        layout = QFormLayout(self._label_popup.frame)
-        layout.addRow("Label", self._label_edit)
+        self._label = QLabel()
 
         self._bit_btns = [_BitButton(device=device, idx=i, bit=b) for b in range(8)]
 
@@ -127,17 +114,6 @@ class _DigitalOutWidget(QWidget):
             self._layout.addWidget(btn)
 
         self._dev.propertyChanged.connect(self._on_property_changed)
-
-    def _edit_label(self) -> None:
-        self._label_popup.show_above_mouse()
-
-    def _update_label(self) -> None:
-        lbl = self._label_edit.text()
-        self._label.setText(lbl)
-
-        lbl_map = Settings.instance().bh_dcc_dcu_connector_labels
-        lbl_map[self._dev.name()][self._idx] = lbl
-        Settings.instance().flush()
 
     def _set_property(self, suffix: str, value: Any) -> None:
         self._mmcore.setProperty(self._dev.label, f"C{self._idx}_{suffix}", value)
@@ -159,21 +135,8 @@ class _GainWidget(QWidget):
         self._dev = device
         self._idx = i
 
-        # Ensure this device has a label
-        lbl_map = Settings.instance().bh_dcc_dcu_connector_labels
-        lbl_map.setdefault(device.name(), {})
-        lbl_map[device.name()].setdefault(i, f"Connector {i}")
         # Get label from settings
-        self._label = QLabel(lbl_map[device.name()][i])
-        self._label.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        self._label.customContextMenuRequested.connect(self._edit_label)
-
-        self._label_popup = QtPopup()
-        self._label_edit = QLineEdit(self._label.text())
-        self._label_edit.editingFinished.connect(self._update_label)
-
-        layout = QFormLayout(self._label_popup.frame)
-        layout.addRow("Label", self._label_edit)
+        self._label = QLabel()
 
         self._gain_lbl = QLabel("Gain/HV:")
         self._gain = QLabeledDoubleSlider(Qt.Orientation.Horizontal)
@@ -223,13 +186,58 @@ class _GainWidget(QWidget):
         color = "black" if overloaded else "transparent"
         self._overload.setStyleSheet(f"QPushButton {{color: {color};}}")
 
-    def _edit_label(self) -> None:
-        self._label_popup.show_above_mouse()
+
+class _LabelControls:
+    """Label Controls for a particular index."""
+
+    def __init__(self, mmcore: CMMCorePlus, dev: Device, idx: int) -> None:
+        self._dev = dev
+        self._idx = idx
+        self.checkbox = QCheckBox()
+        self.edit = QLineEdit()
+        self.ctrl: _GainWidget | _DigitalOutWidget
+
+        if f"C{self._idx}_GainHV" in self._dev.propertyNames():
+            self.ctrl = _GainWidget(mmcore, self._dev, idx)
+        elif f"C{self._idx}_DigitalOut" in self._dev.propertyNames():
+            self.ctrl = _DigitalOutWidget(mmcore, self._dev, idx)
+        else:
+            raise Exception(f"Unexpected device on Connector {idx} of device {dev}")
+
+        # Initialize settings
+        lbl_map = Settings.instance().bh_dcc_dcu_connector_labels
+        lbl_map.setdefault(self._dev.name(), {})
+        lbl_map[self._dev.name()].setdefault(idx, f"Connector {idx}")
+
+        vis_map = Settings.instance().bh_dcc_dcu_connector_visibility
+        vis_map.setdefault(self._dev.name(), {})
+        vis_map[self._dev.name()].setdefault(idx, True)
+
+        # Signals
+        self.checkbox.toggled.connect(self._update_visible)
+        self.edit.editingFinished.connect(self._update_label)
+
+        # Configure widget against settings
+        self.edit.setText(lbl_map[self._dev.name()][self._idx])
+        self.edit.editingFinished.emit()
+        self.checkbox.setChecked(vis_map[self._dev.name()][self._idx])
+        self.checkbox.toggled.emit(self.checkbox.isChecked())
+
+    def _update_visible(self, toggled: bool) -> None:
+        # Update visibility in ctrl
+        self.ctrl.setVisible(toggled)
+
+        # Update label in settings
+        vis_map = Settings.instance().bh_dcc_dcu_connector_visibility
+        vis_map[self._dev.name()][self._idx] = toggled
+        Settings.instance().flush()
 
     def _update_label(self) -> None:
-        lbl = self._label_edit.text()
-        self._label.setText(lbl)
+        # Update label in ctrl
+        lbl = self.edit.text()
+        self.ctrl._label.setText(lbl)
 
+        # Update label in settings
         lbl_map = Settings.instance().bh_dcc_dcu_connector_labels
         lbl_map[self._dev.name()][self._idx] = lbl
         Settings.instance().flush()
@@ -242,12 +250,13 @@ class _Module(QWidget):
         super().__init__()
         self._mmcore = mmcore
         self._dev = mmcore.getDeviceObject(dev_name)
-        self._connectors: list[QWidget] = []
+        self._connectors: list[_LabelControls] = []
         for i in range(1, 6):
-            if f"C{i}_GainHV" in self._dev.propertyNames():
-                self._connectors.append(_GainWidget(mmcore, self._dev, i))
-            elif f"C{i}_DigitalOut" in self._dev.propertyNames():
-                self._connectors.append(_DigitalOutWidget(mmcore, self._dev, i))
+            if (
+                f"C{i}_GainHV" in self._dev.propertyNames()
+                or f"C{i}_DigitalOut" in self._dev.propertyNames()
+            ):
+                self._connectors.append(_LabelControls(self._mmcore, self._dev, i))
 
         self._cooling = QCheckBox("Enable Cooling")
         self._enable_outs = QCheckBox("Enable Outputs")
@@ -260,13 +269,25 @@ class _Module(QWidget):
 
         self._layout = QVBoxLayout(self)
         for connector in self._connectors:
-            self._layout.addWidget(connector)
+            self._layout.addWidget(connector.ctrl)
         self._layout.addLayout(self._module_ctrls)
 
         self._dev.propertyChanged.connect(self._on_property_changed)
         self._cooling.toggled.connect(self._on_enable_cooling)
         self._enable_outs.toggled.connect(self._on_enable_outs)
         self._clr_overloads.clicked.connect(self._on_clr_overloads)
+
+        self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.customContextMenuRequested.connect(self._show_popup)
+
+        self._settings_popup = QtPopup()
+        settings_layout = QFormLayout(self._settings_popup.frame)
+        for con in self._connectors:
+            settings_layout.addRow(f"Show Connector {con._idx}: ", con.checkbox)
+            settings_layout.addRow(f"Connector {con._idx} Label: ", con.edit)
+
+    def _show_popup(self) -> None:
+        self._settings_popup.show_above_mouse()
 
     def _on_clr_overloads(self) -> None:
         prop = "ClearOverloads"

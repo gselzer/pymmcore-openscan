@@ -142,6 +142,8 @@ class Settings(BaseSettings):
 
     bh_dcc_dcu_connector_labels: dict[str, dict[int, str]] = {}
     """Labels for DCC/DCU unit connectors."""
+    bh_dcc_dcu_connector_visibility: dict[str, dict[int, bool]] = {}
+    """Visibility for DCC/DCU unit connectors."""
 
     @classmethod
     def instance(cls) -> Settings:
