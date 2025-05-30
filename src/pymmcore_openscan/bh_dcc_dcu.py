@@ -116,7 +116,7 @@ class _GainWidget(QWidget):
         # (a) notifies users of controller overload
         # (b) on DCUs, enables the user to clear the overload
         self._overload = QPushButton(text="Overloaded")
-        self._overload.setToolTip("Overload indicator")
+        self._overload.setToolTip("Overload indicator. Click to clear.")
         self._overload_icon = QIconifyIcon("si:error-line", color="red")
         self._overload_icon_hidden = QIconifyIcon("si:error-line", color="transparent")
         self._set_overload(False)
