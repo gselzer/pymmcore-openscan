@@ -102,7 +102,7 @@ class _GainWidget(QWidget):
     def __init__(self, mmcore: CMMCorePlus, device: Device, i: int) -> None:
         super().__init__()
         self._mmcore = mmcore
-        self._dev = device
+        self._dev: Device = device
         self._idx = i
 
         self._label = QLabel(f"Connector {i} Gain/HV:")
@@ -121,7 +121,9 @@ class _GainWidget(QWidget):
         self._overload_icon_hidden = QIconifyIcon("si:error-line", color="transparent")
         self._set_overload(False)
         if f"C{i}_ClearOverload" in self._dev.propertyNames():
-            self._overload.clicked.connect(self._clear_overload)
+            self._overload.clicked.connect(self._clear_connector_overload)
+        elif "ClearOverloads" in self._dev.propertyNames():
+            self._overload.clicked.connect(self._clear_all_overloads)
 
         self._layout = QHBoxLayout(self)
         self._layout.addWidget(self._label)
@@ -144,15 +146,13 @@ class _GainWidget(QWidget):
         elif prop == f"C{self._idx}_Overloaded":
             self._set_overload(value == "Yes")
 
-    def _clear_overload(self) -> None:
-        prop = "ClearOverloads"
-        if "ClearOverloads" in self._dev.propertyNames():
-            self._mmcore.setProperty(self._dev.label, prop, "Clear")
-        else:
-            for i in range(1, 6):
-                self._mmcore.setProperty(
-                    self._dev.label, f"C{i}_ClearOverload", "Clear"
-                )
+    def _clear_connector_overload(self) -> None:
+        """Called when the device has one Clear Overloads signal per connector."""
+        self._dev.setProperty(f"C{self._idx}_ClearOverload", "Clear")
+
+    def _clear_all_overloads(self) -> None:
+        """Called when the device has one Clear Overloads signal for all connectors."""
+        self._dev.setProperty("ClearOverloads", "Clear")
 
     def _set_overload(self, overloaded: bool) -> None:
         icon = self._overload_icon if overloaded else self._overload_icon_hidden
@@ -172,7 +172,6 @@ class _NotifyButton(QPushButton):
         **kwargs: Any,
     ) -> None:
         super().__init__(*args, **kwargs)
-        # self._clicked: bool = False
 
         self._on_color = (
             QApplication.palette()
@@ -206,10 +205,6 @@ class _NotifyButton(QPushButton):
         font.setPointSize(int(icon_height * 0.75))  # Works for most fonts
         self.setFont(font)
 
-    # def _on_click(self) -> None:
-    #     self._clicked = not self._clicked
-    #     self._on_toggle(self._clicked)
-
     def _on_toggle(self, toggled: bool) -> None:
         if toggled:
             self.setText(self._on_text)
@@ -219,7 +214,6 @@ class _NotifyButton(QPushButton):
             self.setText(self._off_text)
             self.setIcon(self._off_icon)
             self.setStyleSheet(f"QPushButton {{color: {self._off_color}}}")
-        # self.toggled.emit(toggled)
 
 
 class _Module(QWidget):
@@ -236,27 +230,30 @@ class _Module(QWidget):
             elif f"C{i}_DigitalOut" in self._dev.propertyNames():
                 self._connectors.append(_DigitalOutWidget(mmcore, self._dev, i))
 
-        self._cooling_lbl = QLabel("Cooling: ")
+        self._toggle_lbl = QLabel("Toggle Power: ")
         self._cooling = _NotifyButton(
             notify_icon="fluent-color:weather-snowflake-48",
             idle_icon="fluent:weather-snowflake-48-regular",
+            notify_text="Cooling",
+            idle_text="Cooling",
         )
         self._outs_lbl = QLabel("Outputs: ")
         self._outs = _NotifyButton(
             notify_icon="fluent-color:warning-48",
             idle_icon="fluent:warning-48-regular",
+            notify_text="Outputs",
+            idle_text="Outputs",
         )
-        font = self._cooling_lbl.font()
+        font = self._toggle_lbl.font()
         font.setPointSize(18)
-        self._cooling_lbl.setFont(font)
+        self._toggle_lbl.setFont(font)
         self._outs_lbl.setFont(font)
         self._cooling.set_height(24)
         self._outs.set_height(24)
 
         self._module_ctrls = QHBoxLayout()
-        self._module_ctrls.addWidget(self._cooling_lbl)
+        self._module_ctrls.addWidget(self._toggle_lbl)
         self._module_ctrls.addWidget(self._cooling)
-        self._module_ctrls.addWidget(self._outs_lbl)
         self._module_ctrls.addWidget(self._outs)
 
         self._layout = QVBoxLayout(self)
