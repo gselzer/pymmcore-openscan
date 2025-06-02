@@ -2,7 +2,7 @@
 Settings for PyMMCore-OpenScan widgets.
 
 Much of this code is graciously borrowed from
-https://github.com/pymmcore-plus/pymmcore-gui/blob/main/src/pymmcore_gui/_settings.py
+https://github.com/pymmcore-plus/pymmcore-gui/blob/4d92be77bc71a0019e01ac7c5a1aad2bb832832a/src/pymmcore_gui/_settings.py#L1
 """
 
 from __future__ import annotations
