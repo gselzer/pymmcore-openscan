@@ -83,7 +83,7 @@ class PyMMCoreOpenScanSettingsSource(PydanticBaseSettingsSource):
         if os.getenv("MMGUI_NO_SETTINGS"):  # pragma: no cover
             return {}
         values = self._read_settings()
-        return _good_data_only(Settings, values, warn=True)
+        return _filter_current_settings(Settings, values, warn=True)
 
     def get_field_value(
         self, field: FieldInfo, field_name: str
@@ -93,10 +93,10 @@ class PyMMCoreOpenScanSettingsSource(PydanticBaseSettingsSource):
         return None, "", False  # pragma: no cover
 
 
-def _good_data_only(
+def _filter_current_settings(
     cls: type[BaseModel], data: dict[str, Any], warn: bool = True
 ) -> dict[str, Any]:
-    """Attempt to extract only the good fields from `data` that are valid for `cls`."""
+    """Attempt to extract only the settings from `data` that belong to `cls`."""
     cleaned: dict[str, Any] = {}
     model_fields = cls.model_fields
     for key, value in data.items():
@@ -105,7 +105,7 @@ def _good_data_only(
             field = model_fields[key]
             annotation = field.annotation
             if isinstance(annotation, type) and issubclass(annotation, BaseModel):
-                cleaned[key] = _good_data_only(annotation, value, warn=warn)
+                cleaned[key] = _filter_current_settings(annotation, value, warn=warn)
             else:
                 try:
                     TypeAdapter(field.annotation).validate_python(value)
@@ -162,13 +162,7 @@ class Settings(BaseSettings):
         dotenv_settings: PydanticBaseSettingsSource,
         file_secret_settings: PydanticBaseSettingsSource,
     ) -> tuple[PydanticBaseSettingsSource, ...]:
-        """Define the sources and their order for loading the settings values.
-
-        Values are loaded in the order of the sources. Priority is given to earlier
-        sources (i.e. values explicitly passed to the constructor take priority,
-        then environment variables, then dotenv files, then the user settings from
-        SETTINGS_FILE, then file secrets).
-        """
+        """Overridden to include our custom json settings source."""
         if TESTING:
             # we're running in tests...
             # don't load the user settings, and change env-prefix
