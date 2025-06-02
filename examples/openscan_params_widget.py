@@ -18,7 +18,7 @@ mmcore.initializeDevice("OSc-LSM")
 mmcore.loadDevice("OSc-Magnifier", "OpenScan", "OSc-Magnifier")
 mmcore.initializeDevice("OSc-Magnifier")
 
-dcc = ImageCollectionParameters(mmcore)
+dcc = ImageCollectionParameters(mmcore=mmcore)
 dcc.show()
 
 app.exec()

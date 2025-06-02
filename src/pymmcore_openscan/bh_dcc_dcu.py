@@ -3,9 +3,10 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, cast
 
 from pymmcore_plus import CMMCorePlus
-from qtpy.QtCore import Qt
+from qtpy.QtCore import QSize, Qt
+from qtpy.QtGui import QPalette
 from qtpy.QtWidgets import (
-    QCheckBox,
+    QApplication,
     QHBoxLayout,
     QLabel,
     QPushButton,
@@ -101,7 +102,7 @@ class _GainWidget(QWidget):
     def __init__(self, mmcore: CMMCorePlus, device: Device, i: int) -> None:
         super().__init__()
         self._mmcore = mmcore
-        self._dev = device
+        self._dev: Device = device
         self._idx = i
 
         self._label = QLabel(f"Connector {i} Gain/HV:")
@@ -115,12 +116,14 @@ class _GainWidget(QWidget):
         # (a) notifies users of controller overload
         # (b) on DCUs, enables the user to clear the overload
         self._overload = QPushButton(text="Overloaded")
-        self._overload.setToolTip("Overload indicator")
+        self._overload.setToolTip("Overload indicator. Click to clear.")
         self._overload_icon = QIconifyIcon("si:error-line", color="red")
         self._overload_icon_hidden = QIconifyIcon("si:error-line", color="transparent")
         self._set_overload(False)
         if f"C{i}_ClearOverload" in self._dev.propertyNames():
-            self._overload.clicked.connect(self._clear_overload)
+            self._overload.clicked.connect(self._clear_connector_overload)
+        elif "ClearOverloads" in self._dev.propertyNames():
+            self._overload.clicked.connect(self._clear_all_overloads)
 
         self._layout = QHBoxLayout(self)
         self._layout.addWidget(self._label)
@@ -143,14 +146,76 @@ class _GainWidget(QWidget):
         elif prop == f"C{self._idx}_Overloaded":
             self._set_overload(value == "Yes")
 
-    def _clear_overload(self) -> None:
-        self._set_property("ClearOverload", "Clear")
+    def _clear_connector_overload(self) -> None:
+        """Called when the device has one Clear Overloads signal per connector."""
+        self._dev.setProperty(f"C{self._idx}_ClearOverload", "Clear")
+
+    def _clear_all_overloads(self) -> None:
+        """Called when the device has one Clear Overloads signal for all connectors."""
+        self._dev.setProperty("ClearOverloads", "Clear")
 
     def _set_overload(self, overloaded: bool) -> None:
         icon = self._overload_icon if overloaded else self._overload_icon_hidden
         self._overload.setIcon(icon)
         color = "black" if overloaded else "transparent"
         self._overload.setStyleSheet(f"QPushButton {{color: {color};}}")
+
+
+class _PowerButton(QPushButton):
+    """Buttons tailored to denote Device output power state."""
+
+    def __init__(
+        self,
+        notify_icon: str,
+        idle_icon: str,
+        notify_text: str = "On",
+        idle_text: str = "Off",
+        *args: Any,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(*args, **kwargs)
+
+        self._on_color = (
+            QApplication.palette()
+            .color(QPalette.ColorGroup.Active, QPalette.ColorRole.Text)
+            .name()
+        )
+        self._off_color = (
+            QApplication.palette()
+            .color(QPalette.ColorGroup.Disabled, QPalette.ColorRole.Text)
+            .name()
+        )
+
+        self._on_icon: QIconifyIcon = QIconifyIcon(notify_icon)
+        self._off_icon: QIconifyIcon = QIconifyIcon(idle_icon, color=self._off_color)
+
+        self._on_text = notify_text
+        self._off_text = idle_text
+
+        # Init
+        self._on_toggle(False)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+
+        # Signals
+        self.setCheckable(True)
+        self.toggled.connect(self._on_toggle)
+
+    def set_height(self, height: int) -> None:
+        icon_height = 24
+        self.setIconSize(QSize(icon_height, icon_height))
+        font = self.font()
+        font.setPointSize(int(icon_height * 0.75))  # Works for most fonts
+        self.setFont(font)
+
+    def _on_toggle(self, toggled: bool) -> None:
+        if toggled:
+            self.setText(self._on_text)
+            self.setIcon(self._on_icon)
+            self.setStyleSheet(f"QPushButton {{color: {self._on_color}}}")
+        else:
+            self.setText(self._off_text)
+            self.setIcon(self._off_icon)
+            self.setStyleSheet(f"QPushButton {{color: {self._off_color}}}")
 
 
 class _Module(QWidget):
@@ -160,6 +225,8 @@ class _Module(QWidget):
         super().__init__()
         self._mmcore = mmcore
         self._dev = mmcore.getDeviceObject(dev_name)
+
+        # Widgets for each connector
         self._connectors: list[QWidget] = []
         for i in range(1, 6):
             if f"C{i}_GainHV" in self._dev.propertyNames():
@@ -167,14 +234,33 @@ class _Module(QWidget):
             elif f"C{i}_DigitalOut" in self._dev.propertyNames():
                 self._connectors.append(_DigitalOutWidget(mmcore, self._dev, i))
 
-        self._cooling = QCheckBox("Enable Cooling")
-        self._enable_outs = QCheckBox("Enable Outputs")
-        self._clr_overloads = QPushButton("Clear Overloads")
+        # Widgets for Power controls
+        self._toggle_lbl = QLabel("Toggle Power: ")
+        self._cooling = _PowerButton(
+            notify_icon="fluent-color:weather-snowflake-48",
+            idle_icon="fluent:weather-snowflake-48-regular",
+            notify_text="Cooling",
+            idle_text="Cooling",
+        )
+        self._outs_lbl = QLabel("Outputs: ")
+        self._outs = _PowerButton(
+            notify_icon="fluent-color:warning-48",
+            idle_icon="fluent:warning-48-regular",
+            notify_text="Outputs",
+            idle_text="Outputs",
+        )
+        # Make these controls a little larger
+        font = self._toggle_lbl.font()
+        font.setPointSize(18)
+        self._toggle_lbl.setFont(font)
+        self._outs_lbl.setFont(font)
+        self._cooling.set_height(24)
+        self._outs.set_height(24)
 
         self._module_ctrls = QHBoxLayout()
+        self._module_ctrls.addWidget(self._toggle_lbl)
         self._module_ctrls.addWidget(self._cooling)
-        self._module_ctrls.addWidget(self._enable_outs)
-        self._module_ctrls.addWidget(self._clr_overloads)
+        self._module_ctrls.addWidget(self._outs)
 
         self._layout = QVBoxLayout(self)
         for connector in self._connectors:
@@ -183,12 +269,7 @@ class _Module(QWidget):
 
         self._dev.propertyChanged.connect(self._on_property_changed)
         self._cooling.toggled.connect(self._on_enable_cooling)
-        self._enable_outs.toggled.connect(self._on_enable_outs)
-        self._clr_overloads.clicked.connect(self._on_clr_overloads)
-
-    def _on_clr_overloads(self) -> None:
-        prop = "ClearOverloads"
-        self._mmcore.setProperty(self._dev.label, prop, "Clear")
+        self._outs.toggled.connect(self._on_enable_outs)
 
     def _on_enable_outs(self, enabled: bool) -> None:
         # Some or all of these properties will be on the device
@@ -203,17 +284,20 @@ class _Module(QWidget):
         value = "On" if enabled else "Off"
         for prop in enable_properties:
             if prop in self._dev.propertyNames():
-                self._mmcore.setProperty(self._dev.label, prop, value)
+                self._dev.setProperty(prop, value)
 
     def _on_enable_cooling(self, enabled: bool) -> None:
-        prop = "C3_Cooling"
         value = "On" if enabled else "Off"
-        self._mmcore.setProperty(self._dev.label, prop, value)
+        for i in range(1, 6):
+            # Some or all of these properties will be on the device
+            prop = f"C{i}_Cooling"
+            if prop in self._dev.propertyNames():
+                self._dev.setProperty(prop, value)
 
     def _on_property_changed(self, prop: str, value: Any) -> None:
         if prop == "EnableOutputs":
-            with signals_blocked(self._enable_outs):
-                self._enable_outs.setChecked(value == "On")
+            with signals_blocked(self._outs):
+                self._outs.setChecked(value == "On")
         elif prop == "C3_Cooling":
             with signals_blocked(self._cooling):
                 self._cooling.setChecked(value == "On")

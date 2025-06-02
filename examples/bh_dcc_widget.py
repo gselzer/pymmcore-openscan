@@ -16,7 +16,7 @@ mmcore.loadDevice("DCCModule1", "BH_DCC_DCU", "DCCModule1")
 mmcore.initializeDevice("DCCModule1")
 
 
-dcc = DCCWidget(mmcore)
+dcc = DCCWidget(mmcore=mmcore)
 dcc.show()
 
 app.exec()
