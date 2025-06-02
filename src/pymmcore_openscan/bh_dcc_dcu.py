@@ -161,7 +161,9 @@ class _GainWidget(QWidget):
         self._overload.setStyleSheet(f"QPushButton {{color: {color};}}")
 
 
-class _NotifyButton(QPushButton):
+class _PowerButton(QPushButton):
+    """Buttons tailored to denote Device output power state."""
+
     def __init__(
         self,
         notify_icon: str,
@@ -231,14 +233,14 @@ class _Module(QWidget):
                 self._connectors.append(_DigitalOutWidget(mmcore, self._dev, i))
 
         self._toggle_lbl = QLabel("Toggle Power: ")
-        self._cooling = _NotifyButton(
+        self._cooling = _PowerButton(
             notify_icon="fluent-color:weather-snowflake-48",
             idle_icon="fluent:weather-snowflake-48-regular",
             notify_text="Cooling",
             idle_text="Cooling",
         )
         self._outs_lbl = QLabel("Outputs: ")
-        self._outs = _NotifyButton(
+        self._outs = _PowerButton(
             notify_icon="fluent-color:warning-48",
             idle_icon="fluent:warning-48-regular",
             notify_text="Outputs",
