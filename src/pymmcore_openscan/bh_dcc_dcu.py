@@ -225,6 +225,8 @@ class _Module(QWidget):
         super().__init__()
         self._mmcore = mmcore
         self._dev = mmcore.getDeviceObject(dev_name)
+
+        # Widgets for each connector
         self._connectors: list[QWidget] = []
         for i in range(1, 6):
             if f"C{i}_GainHV" in self._dev.propertyNames():
@@ -232,6 +234,7 @@ class _Module(QWidget):
             elif f"C{i}_DigitalOut" in self._dev.propertyNames():
                 self._connectors.append(_DigitalOutWidget(mmcore, self._dev, i))
 
+        # Widgets for Power controls
         self._toggle_lbl = QLabel("Toggle Power: ")
         self._cooling = _PowerButton(
             notify_icon="fluent-color:weather-snowflake-48",
@@ -246,6 +249,7 @@ class _Module(QWidget):
             notify_text="Outputs",
             idle_text="Outputs",
         )
+        # Make these controls a little larger
         font = self._toggle_lbl.font()
         font.setPointSize(18)
         self._toggle_lbl.setFont(font)
@@ -280,12 +284,15 @@ class _Module(QWidget):
         value = "On" if enabled else "Off"
         for prop in enable_properties:
             if prop in self._dev.propertyNames():
-                self._mmcore.setProperty(self._dev.label, prop, value)
+                self._dev.setProperty(prop, value)
 
     def _on_enable_cooling(self, enabled: bool) -> None:
-        prop = "C3_Cooling"
         value = "On" if enabled else "Off"
-        self._mmcore.setProperty(self._dev.label, prop, value)
+        for i in range(1, 6):
+            # Some or all of these properties will be on the device
+            prop = f"C{i}_Cooling"
+            if prop in self._dev.propertyNames():
+                self._dev.setProperty(prop, value)
 
     def _on_property_changed(self, prop: str, value: Any) -> None:
         if prop == "EnableOutputs":
