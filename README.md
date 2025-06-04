@@ -4,7 +4,9 @@ This package provides an *extension* to the [`pymmcore-gui`](https://github.com/
 
 Current features target use cases within the [Laboratory for Optical and Computational Instrumentation](https://loci.wisc.edu/) at the University of Wisconsin-Madison.
 
-## Installation
+## Usage
+
+### Installation
 
 from pip:
 
@@ -14,8 +16,21 @@ TODO
 
 from github:
 
-```
+```bash
 pip install 'pymmcore-openscan @ git+https://github.com/gselzer/pymmcore-openscan'
+```
+
+### Launching
+
+from the command line:
+```bash
+mmos
+```
+
+from python:
+```python
+from pymmcore_openscan import run
+run()
 ```
 
 ## Development
