@@ -95,7 +95,7 @@ class _RateCounter:
             if self._prop_name in dev.propertyNames():
                 self._prop = dev.getPropertyObject(self._prop_name)
 
-        self.spinbox.setEnabled(self._prop is None)
+        self.spinbox.setEnabled(self._prop is not None)
         self.update()
 
     def update(self) -> None:

@@ -18,6 +18,7 @@ def test_augment_pymmcore_gui(qtbot: QtBot, qapp: QApplication) -> None:
     augment_pymmcore_gui()
     # Create the GUI
     gui = MicroManagerGUI()
+    qtbot.addWidget(gui)
 
     # Assert all widgets are registered
     for info in _get_action_infos():
