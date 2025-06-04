@@ -18,7 +18,7 @@ from qtpy.QtWidgets import (
     QWidget,
 )
 
-from pymmcore_openscan._util import ResizingGraphicsView
+from pymmcore_openscan.widgets._util import ResizingGraphicsView
 
 MAX_POWER = 8
 BAR_WIDTH = 10
