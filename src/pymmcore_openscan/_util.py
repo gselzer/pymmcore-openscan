@@ -11,31 +11,38 @@ from pymmcore_openscan.widgets import (
 
 
 def augment_pymmcore_gui() -> None:
-    """Install pymmcore-gui actions for all widgets."""
-    WidgetActionInfo(
-        key="bh_dcc",
-        text="Becker & Hickl DCC",
-        icon="mdi-light:format-list-bulleted",
-        create_widget=_create_dcc,
-    )
-    WidgetActionInfo(
-        key="bh_dcu",
-        text="Becker & Hickl DCU",
-        icon="mdi-light:format-list-bulleted",
-        create_widget=_create_dcu,
-    )
-    WidgetActionInfo(
-        key="bh_spc",
-        text="Becker & Hickl SPC Rate Counter",
-        icon="carbon:meter",
-        create_widget=_create_spc_rate_counter,
-    )
-    WidgetActionInfo(
-        key="openscan_params",
-        text="OpenScan Params",
-        icon="mynaui:scan",
-        create_widget=_create_openscan_params,
-    )
+    """Installs package functionality into pymmcore-gui."""
+    # By Creating these WidgetActionInfos, they are installed in pymmcore-gui.
+    _get_action_infos()
+
+
+def _get_action_infos() -> list[WidgetActionInfo]:
+    return [
+        WidgetActionInfo(
+            key="bh_dcc",
+            text="Becker & Hickl DCC",
+            icon="mdi-light:format-list-bulleted",
+            create_widget=_create_dcc,
+        ),
+        WidgetActionInfo(
+            key="bh_dcu",
+            text="Becker & Hickl DCU",
+            icon="mdi-light:format-list-bulleted",
+            create_widget=_create_dcu,
+        ),
+        WidgetActionInfo(
+            key="bh_spc",
+            text="Becker & Hickl SPC Rate Counter",
+            icon="carbon:meter",
+            create_widget=_create_spc_rate_counter,
+        ),
+        WidgetActionInfo(
+            key="openscan_params",
+            text="OpenScan Params",
+            icon="mynaui:scan",
+            create_widget=_create_openscan_params,
+        ),
+    ]
 
 
 # -- Widget Creators --
