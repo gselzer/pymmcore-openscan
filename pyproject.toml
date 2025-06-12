@@ -170,13 +170,11 @@ source = ['pymmcore_openscan']
 # https://github.com/mgedmin/check-manifest#configuration
 [tool.check-manifest]
 ignore = [
-    ".github_changelog_generator",
     ".pre-commit-config.yaml",
+    ".ruff_cache/**/*",
     "tests/**/*",
-    "docs/**/*",
-    "mkdocs.yml",
     "examples/**/*",
-    "CHANGELOG.md",
+    "uv.lock"
 ]
 
 [tool.typos.default]
