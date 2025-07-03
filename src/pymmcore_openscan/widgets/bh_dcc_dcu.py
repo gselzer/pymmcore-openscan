@@ -189,9 +189,19 @@ class _GainWidget(QWidget):
         self._dev.setProperty("ClearOverloads", "Clear")
 
     def _set_overload(self, overloaded: bool) -> None:
+        # The goal here is to create an alert that (a) takes up needed space, but is not
+        # distracting when not overloaded, and (b) is very noticeable when overloaded.
         icon = self._overload_icon if overloaded else self._overload_icon_hidden
         self._overload.setIcon(icon)
-        color = "black" if overloaded else "transparent"
+        color = (
+            "transparent"
+            if not overloaded
+            else (
+                QApplication.palette()
+                .color(QPalette.ColorGroup.Active, QPalette.ColorRole.Text)
+                .name()
+            )
+        )
         self._overload.setStyleSheet(f"QPushButton {{color: {color};}}")
 
 
