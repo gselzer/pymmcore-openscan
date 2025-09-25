@@ -1,7 +1,7 @@
 from pymmcore_plus import CMMCorePlus
 from qtpy.QtWidgets import QApplication
 
-from pymmcore_openscan.spc import SPCRateCounters
+from pymmcore_openscan.widgets import SPCRateCounters
 
 app = QApplication([])
 mmcore = CMMCorePlus().instance()

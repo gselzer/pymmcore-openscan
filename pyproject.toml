@@ -47,16 +47,14 @@ dynamic = ["version"]
 dependencies = [
     'pydantic-settings',
     'pymmcore-gui@git+https://github.com/pymmcore-plus/pymmcore-gui',
-    'PyQt6==6.9.0',
     'superqt[iconify, quantity] >=0.7.1',
 ]
 
 [tool.hatch.metadata]
 allow-direct-references = true
 
-# same as console_scripts entry point
-[project.scripts]
-mmos = "pymmcore_openscan.__main__:run"
+[project.entry-points."pymmcore-gui-actions"]
+openscan-actions = "pymmcore_openscan:create_actions"
 
 # extras
 # https://peps.python.org/pep-0621/#dependencies-optional-dependencies

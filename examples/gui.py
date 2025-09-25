@@ -1,6 +1,4 @@
 from pymmcore_gui import create_mmgui
 
-from pymmcore_openscan import augment_pymmcore_gui
-
-augment_pymmcore_gui()
+# Note that you don't need to do anything special to register the actions
 create_mmgui()
