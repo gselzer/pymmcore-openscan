@@ -47,7 +47,6 @@ dynamic = ["version"]
 dependencies = [
     'pydantic-settings',
     'pymmcore-gui@git+https://github.com/pymmcore-plus/pymmcore-gui',
-    'PyQt6==6.9.0',
     'superqt[iconify, quantity] >=0.7.1',
 ]
 
