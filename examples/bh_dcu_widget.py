@@ -1,7 +1,7 @@
 from pymmcore_plus import CMMCorePlus
 from qtpy.QtWidgets import QApplication
 
-from pymmcore_openscan.bh_dcc_dcu import DCUWidget
+from pymmcore_openscan.widgets.bh_dcc_dcu import DCUWidget
 
 app = QApplication([])
 mmcore = CMMCorePlus().instance()

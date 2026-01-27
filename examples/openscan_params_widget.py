@@ -1,7 +1,7 @@
 from pymmcore_plus import CMMCorePlus
 from qtpy.QtWidgets import QApplication
 
-from pymmcore_openscan.image_collection_params import ImageCollectionParameters
+from pymmcore_openscan.widgets.image_collection_params import ImageCollectionParameters
 
 app = QApplication([])
 mmcore = CMMCorePlus().instance()

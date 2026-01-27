@@ -1,6 +1,6 @@
 # pymmcore-openscan
 
-This package provides an *extension* to the [`pymmcore-gui`](https://github.com/pymmcore-plus/pymmcore-gui).
+This package provides an *extension* to [`pymmcore-gui`](https://github.com/pymmcore-plus/pymmcore-gui).
 
 Current features target use cases within the [Laboratory for Optical and Computational Instrumentation](https://loci.wisc.edu/) at the University of Wisconsin-Madison.
 
@@ -43,6 +43,14 @@ cd pymmcore-openscan
 uv sync
 ```
 
+To run this GUI, you'll need to add the following to an existing micro-manager installation:
+1. `mmgr_dal_OpenScan.dll` from [`openscan-mm-adapter`](https://github.com/openscan-lsm/openscan-mm-adapter)
+2. A few files from the [TCSPC Package](https://www.becker-hickl.com/products/tcspc-package/) from Becker & Hickl:
+  * `dcc64.dll`, needed for the DCC - instructions [here](https://micro-manager.org/BH_DCC_DCU), found at `C:\Program Files (x86)\BH\DCC\DLL\dcc64.dll`
+  * `spcm.ini` and `spcm64.dll` from `C:\Program Files (x86)\BH\SPCM\DLL\`
+3. `OpenScanBHSPC.osdev` from [`OpenScan-BH_SPC`](https://github.com/openscan-lsm/OpenScan-BH_SPC)
+4. `OpenScanNIDAQ.osdev` from [`OpenScan-OpenScanNIDAQ`](https://github.com/openscan-lsm/OpenScan-OpenScanNIDAQ)
+
 ### Testing
 
 Testing this package is tricky, because we don't have access to the DLLs (and hardware) necessary to enable all features. For that reason, tests are designed to:
@@ -55,3 +63,6 @@ The tests we do have can be run from the command line:
 ```bash
 uv run pytest
 ```
+
+### Examples
+
