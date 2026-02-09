@@ -47,7 +47,13 @@ To run this GUI, you'll need to add the following to an existing micro-manager i
 1. `mmgr_dal_OpenScan.dll` from [`openscan-mm-adapter`](https://github.com/openscan-lsm/openscan-mm-adapter)
 2. A few files from the [TCSPC Package](https://www.becker-hickl.com/products/tcspc-package/) from Becker & Hickl:
   * `dcc64.dll`, needed for the DCC - instructions [here](https://micro-manager.org/BH_DCC_DCU), found at `C:\Program Files (x86)\BH\DCC\DLL\dcc64.dll`
-  * `spcm.ini` and `spcm64.dll` from `C:\Program Files (x86)\BH\SPCM\DLL\`
+  * `spcm64.dll` from `C:\Program Files (x86)\BH\SPCM\DLL\`
+  * `spcm.ini` from `C:\Program Files (x86)\BH\SPCM\DLL\`
+    * **IF SIMULATING**, you must set the simulation flag to `180` (or whatever model number you are simulating):
+    ```
+    simulation = 180     ; 0 - hardware mode(default) ,
+                   ; >0 - simulation mode (see spcm_def.h for possible values)
+    ```
 3. `OpenScanBHSPC.osdev` from [`OpenScan-BH_SPC`](https://github.com/openscan-lsm/OpenScan-BH_SPC)
 4. `OpenScanNIDAQ.osdev` from [`OpenScan-OpenScanNIDAQ`](https://github.com/openscan-lsm/OpenScan-OpenScanNIDAQ)
 
