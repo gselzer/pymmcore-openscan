@@ -7,7 +7,7 @@ from pymmcore_openscan.widgets import (
     DCCWidget,
     DCUWidget,
     ImageCollectionParameters,
-    SPCRateCounters,
+    SPCRateGraph,
 )
 
 
@@ -39,9 +39,9 @@ def _get_action_infos() -> list[WidgetActionInfo]:
         ),
         WidgetActionInfo(
             key="bh_spc",
-            text="Becker & Hickl SPC Rate Counter",
+            text="Becker & Hickl SPC Rates",
             icon="carbon:meter",
-            create_widget=_create_spc_rate_counter,
+            create_widget=_create_spc_rate_graph,
         ),
         WidgetActionInfo(
             key="openscan_params",
@@ -65,9 +65,9 @@ def _create_dcu(parent: QWidget) -> QWidget:
     return DCUWidget(parent=parent, mmcore=mmcore)
 
 
-def _create_spc_rate_counter(parent: QWidget) -> QWidget:
+def _create_spc_rate_graph(parent: QWidget) -> QWidget:
     mmcore = CMMCorePlus.instance()
-    return SPCRateCounters(parent=parent, mmcore=mmcore)
+    return SPCRateGraph(parent=parent, mmcore=mmcore)
 
 
 def _create_openscan_params(parent: QWidget) -> QWidget:

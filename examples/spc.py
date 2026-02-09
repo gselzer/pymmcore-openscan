@@ -1,7 +1,7 @@
 from pymmcore_plus import CMMCorePlus
 from qtpy.QtWidgets import QApplication
 
-from pymmcore_openscan.widgets.spc import SPCRateCounters
+from pymmcore_openscan.widgets import SPCRateGraph
 
 # If you aren't connected to a real device (which is likely for this example),
 # you can emulate an SPC device using an emulator packaged within the TPSPC application.
@@ -25,7 +25,7 @@ mmcore.initializeDevice("OSc-LSM")
 mmcore.loadDevice("OSc-Magnifier", "OpenScan", "OSc-Magnifier")
 mmcore.initializeDevice("OSc-Magnifier")
 
-dcc = SPCRateCounters(mmcore=mmcore)
+dcc = SPCRateGraph(mmcore=mmcore)
 dcc.show()
 
 app.exec()
