@@ -365,7 +365,7 @@ class OpenScanParameters(QWidget):
         self._dev = self._mmcore.getDeviceObject("OSc-LSM")
         # Init resolution combo box
         self._res_prop = self._dev.getPropertyObject("LSM-Resolution")
-        resolutions = sorted(self._res_prop.allowedValues(), key=lambda x: float(x))
+        resolutions = sorted(self._res_prop.allowedValues(), key=float)
         with signals_blocked(self._resolution):
             for res in resolutions:
                 self._resolution.addItem(f"{res} x {res}", res)
@@ -378,7 +378,7 @@ class OpenScanParameters(QWidget):
             self._sync_zoom_from_core(zoom_prop.value)
         # Init pixel rate combo box
         px_rate_prop = self._dev.getPropertyObject("LSM-PixelRateHz")
-        rates = sorted(px_rate_prop.allowedValues(), key=lambda x: float(x))
+        rates = sorted(px_rate_prop.allowedValues(), key=float)
         with signals_blocked(self._px_time):
             with signals_blocked(self._px_rate):
                 # Add rates to pixel time
