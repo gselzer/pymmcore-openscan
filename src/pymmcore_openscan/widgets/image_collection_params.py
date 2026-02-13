@@ -136,7 +136,6 @@ class _ScaledFOVCanvas(QWidget):
         )
 
         # STEP 2: Draw the label
-        pixel_size = self._mmcore.getPixelSizeUm()
         if pixel_size := self._mmcore.getPixelSizeUm():
             fov_um = self._resolution * pixel_size
             label = f"FOV: {fov_um:.1f} \u00b5m"
