@@ -1,7 +1,7 @@
 from pymmcore_plus import CMMCorePlus
 from qtpy.QtWidgets import QApplication
 
-from pymmcore_openscan.widgets.image_collection_params import ImageCollectionParameters
+from pymmcore_openscan.widgets.image_collection_params import OpenScanParameters
 
 app = QApplication([])
 mmcore = CMMCorePlus().instance()
@@ -18,7 +18,7 @@ mmcore.initializeDevice("OSc-LSM")
 mmcore.loadDevice("OSc-Magnifier", "OpenScan", "OSc-Magnifier")
 mmcore.initializeDevice("OSc-Magnifier")
 
-dcc = ImageCollectionParameters(mmcore=mmcore)
+dcc = OpenScanParameters(mmcore=mmcore)
 dcc.show()
 
 app.exec()

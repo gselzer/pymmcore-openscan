@@ -6,7 +6,7 @@ from qtpy.QtWidgets import QWidget
 from pymmcore_openscan.widgets import (
     DCCWidget,
     DCUWidget,
-    ImageCollectionParameters,
+    OpenScanParameters,
     SPCRateGraph,
 )
 
@@ -72,4 +72,4 @@ def _create_spc_rate_graph(parent: QWidget) -> QWidget:
 
 def _create_openscan_params(parent: QWidget) -> QWidget:
     mmcore = CMMCorePlus.instance()
-    return ImageCollectionParameters(parent=parent, mmcore=mmcore)
+    return OpenScanParameters(parent=parent, mmcore=mmcore)
