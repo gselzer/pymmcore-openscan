@@ -10,8 +10,8 @@ if TYPE_CHECKING:
     from pytestqt.qtbot import QtBot
 
 
-def test_image_collection_params_disabled(qtbot: QtBot) -> None:
-    """Tests how DCCWidget behaves when the device is unavailable."""
+def test_openscan_params_disabled(qtbot: QtBot) -> None:
+    """Tests how OpenScanParameters behaves when the device is unavailable."""
     mmcore = CMMCorePlus.instance()
     wdg = OpenScanParameters(mmcore=mmcore)
     qtbot.addWidget(wdg)
