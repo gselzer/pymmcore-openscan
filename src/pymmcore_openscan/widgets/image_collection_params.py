@@ -294,7 +294,7 @@ class OpenScanParameters(QWidget):
         # NOTE: This widget is the inverse of self._px_time. I have heard that
         # users might want one or the other. This is the simplest way to make both
         # available They are well synchronized, but we might want the ability to toggle
-        # or save a user's prefrerences later.
+        # or save a user's preferences later.
         self._px_rate = QComboBox()
         self._px_rate.currentIndexChanged.connect(self._set_px_rate_in_core)
         self._layout.addRow("Pixel Rate: ", self._px_rate)
