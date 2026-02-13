@@ -189,7 +189,7 @@ class _ScaledFOVCanvas(QWidget):
         fm = painter.fontMetrics()
         accent_color = QApplication.palette().color(QPalette.ColorRole.Accent)
         # Pixel size: scales with pixel size(zoom & resolution)
-        if current_um := self._mmcore.getPixelSizeUm() > 0:
+        if (current_um := self._mmcore.getPixelSizeUm()) > 0:
             zoom_factor = self._base_pixel_size / current_um
         else:
             # Pixel size unset
