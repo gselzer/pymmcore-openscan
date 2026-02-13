@@ -28,7 +28,8 @@ class _ScaledFOVCanvas(QWidget):
         # Magic numbers
         self._fov_padding = 15  # Default padding between FOV and canvas edge
         self._arrow_length = 6
-        self._pixel_base_side_length = 40  #  Side length of pixel for default params
+        self._pixel_base_side_length = 40  # Side length of pixel for default params
+        self._right_witness_length = 10  # length of witness line stub opposite labels
 
         # The default pixel size (before it is modified by OpenScan Zoom/Resolution)
         # set in self._try_enable
@@ -162,7 +163,12 @@ class _ScaledFOVCanvas(QWidget):
         )
         # Right witness line
         fov_right = int((self.width() + fov_side) / 2)
-        painter.drawLine(fov_right, witness_y, fov_right + 10, witness_y)
+        painter.drawLine(
+            fov_right,  # x1
+            witness_y,  # y1
+            fov_right + self._right_witness_length,  # x2
+            witness_y,  # y2
+        )
         painter.setBrush(edge_color)
         self._draw_arrowhead(
             painter,
@@ -228,7 +234,12 @@ class _ScaledFOVCanvas(QWidget):
         )
         # Right witness line
         px_right = int((self.width() + pixel_side) / 2)
-        painter.drawLine(px_right, witness_y, px_right + 10, witness_y)
+        painter.drawLine(
+            px_right,  # x1
+            witness_y,  # y1
+            px_right + self._right_witness_length,  # x2
+            witness_y,  # y2
+        )
         painter.setBrush(accent_color)
         self._draw_arrowhead(
             painter,
