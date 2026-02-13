@@ -32,7 +32,7 @@ class _ScaledFOVCanvas(QWidget):
 
         # The default pixel size (before it is modified by OpenScan Zoom/Resolution)
         # set in self._try_enable
-        self._base_pixel_size: float = -1
+        self._base_pixel_size: float = 0
 
         self.setMinimumSize(150, 150)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
@@ -183,7 +183,7 @@ class _ScaledFOVCanvas(QWidget):
         fm = painter.fontMetrics()
         accent_color = QApplication.palette().color(QPalette.ColorRole.Accent)
         # Pixel size: scales with pixel size(zoom & resolution)
-        if current_um := self._mmcore.getPixelSizeUm():
+        if current_um := self._mmcore.getPixelSizeUm() > 0:
             zoom_factor = self._base_pixel_size / current_um
         else:
             # Pixel size unset
