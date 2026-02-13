@@ -30,6 +30,7 @@ class _ScaledFOVCanvas(QWidget):
         self._arrow_length = 6
         self._pixel_base_side_length = 40  # Side length of pixel for default params
         self._right_witness_length = 10  # length of witness line stub opposite labels
+        self._text_label_padding = 4  # pixels between text label and witness line
 
         # The default pixel size (before it is modified by OpenScan Zoom/Resolution)
         # set in self._try_enable
@@ -148,7 +149,7 @@ class _ScaledFOVCanvas(QWidget):
         # STEP 3.1: Witness lines
         # Only drawn if the witness arrow can fit between the text label and the FOV
         fov_left = int((self.width() - fov_side) / 2)
-        text_right = fm.horizontalAdvance(label) + 4
+        text_right = fm.horizontalAdvance(label) + self._text_label_padding
         if fov_left < text_right + self._arrow_length:
             return
         witness_y = self.height() - fm.descent() - fm.height() // 2
@@ -219,7 +220,7 @@ class _ScaledFOVCanvas(QWidget):
         # STEP 3.1: Witness lines
         # Only drawn if the witness arrow can fit between the text label and the pixel
         px_left = int((self.width() - pixel_side) / 2)
-        text_right = fm.horizontalAdvance(label) + 4
+        text_right = fm.horizontalAdvance(label) + self._text_label_padding
         if px_left < text_right + self._arrow_length:
             return
         witness_y = fm.height() // 2
