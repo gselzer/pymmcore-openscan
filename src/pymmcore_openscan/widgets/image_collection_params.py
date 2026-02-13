@@ -183,7 +183,11 @@ class _ScaledFOVCanvas(QWidget):
         fm = painter.fontMetrics()
         accent_color = QApplication.palette().color(QPalette.ColorRole.Accent)
         # Pixel size: scales with pixel size(zoom & resolution)
-        zoom_factor = self._base_pixel_size / self._mmcore.getPixelSizeUm()
+        if current_um := self._mmcore.getPixelSizeUm():
+            zoom_factor = self._base_pixel_size / current_um
+        else:
+            # Pixel size unset
+            zoom_factor = 1
         pixel_side = self._pixel_base_side_length // zoom_factor
 
         # STEP 1: Draw the rectangle
