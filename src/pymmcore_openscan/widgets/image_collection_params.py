@@ -70,7 +70,7 @@ class _ScaledFOVCanvas(QWidget):
         self._base_pixel_size = self._mmcore.getPixelSizeUm()
 
     def _update(self, *args: Any, **kwargs: Any) -> None:
-        # self.update() doesen't take any of the params that will be passed listening to
+        # self.update() doesn't take any of the params that will be passed listening to
         # the core events
         self.update()
 
