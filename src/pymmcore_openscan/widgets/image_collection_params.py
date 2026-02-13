@@ -418,6 +418,5 @@ class OpenScanParameters(QWidget):
         if self._dev is not None:
             px_rate = float(self._dev.getProperty("LSM-PixelRateHz"))
             res = int(self._dev.getProperty("LSM-Resolution"))
-            line_time_s = res / px_rate
-            line_time_ms = line_time_s * 1e6
-            self._line_scan_time.setText(f"{line_time_ms:.1f} μs")
+            line_time = res / px_rate * 1e6
+            self._line_scan_time.setText(f"{line_time:.1f} μs")
