@@ -1,689 +1,247 @@
+from typing import Any
+
 from pymmcore_plus import CMMCorePlus, Device
 from qtpy.QtCore import QPointF, Qt
-from qtpy.QtGui import QColor, QPainter, QPalette, QPen, QPolygonF
+from qtpy.QtGui import QPainter, QPalette, QPen, QPolygonF
 from qtpy.QtWidgets import (
     QApplication,
     QComboBox,
+    QDoubleSpinBox,
     QFormLayout,
     QLabel,
     QPushButton,
     QSizePolicy,
     QWidget,
 )
-from superqt import QLabeledDoubleSlider
 from superqt.utils import signals_blocked
 
-MIN_PIXEL_SIZE = 1
 
-
-class _FOVCanvas(QWidget):
-    """Canvas that visualizes the field of view."""
+class _ScaledFOVCanvas(QWidget):
+    """Canvas that visualizes the field of view with pixel scaled to FOV."""
 
     def __init__(
         self, parent: QWidget | None = None, mmcore: CMMCorePlus | None = None
     ) -> None:
         super().__init__(parent)
         self._mmcore = mmcore or CMMCorePlus.instance()
-        self._resolution: int = 512
-        self._pixel_size: float | None = self._mmcore.getPixelSizeUm()
-        self._padding = 10  # Minimum number of pixels between FOV box and widget edge
+
+        # Magic numbers
+        self._fov_padding = 15  # Default padding between FOV and canvas edge
+        self._arrow_length = 6
+        self._pixel_base_side_length = 40  #  Side length of pixel for default params
+
+        # The default pixel size (before it is modified by OpenScan Zoom/Resolution)
+        # set in self._try_enable
+        self._base_pixel_size: float = -1
 
         self.setMinimumSize(150, 150)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
-        self._mmcore.events.pixelSizeChanged.connect(self._update_pixel_size)
+        # FIXME: There's probably something to be done here but I don't know what yet :)
+        # For example, we PROBABLY want to reset self._base_pixel_size, but I'm not sure
+        # when this would get called.
+        # self._mmcore.events.pixelSizeChanged.connect(something)
+
+        # Listen to relevant signals
+        events = self._mmcore.events
+        events.devicePropertyChanged("OSc-LSM", "LSM-Resolution").connect(self._update)
+        events.devicePropertyChanged("OSc-LSM", "LSM-ZoomFactor").connect(self._update)
+
+        # Enable iff OpenScan is present
         self._mmcore.events.systemConfigurationLoaded.connect(self._try_enable)
         self._try_enable()
 
-    def _try_enable(self) -> None:
-        dev_present = "OSc-LSM" in self._mmcore.getLoadedDevices()
-        self.setEnabled(dev_present)
-
-        self._mmcore.events.devicePropertyChanged("OSc-LSM", "LSM-Resolution").connect(
-            self._update_resolution
-        )
-
-        if not dev_present:
-            return
-
-        self._mmcore.events.devicePropertyChanged("OSc-LSM", "LSM-Resolution").connect(
-            self._update_resolution
-        )
-
-    def _update_pixel_size(self, new_size: float) -> None:
-        self._pixel_size = new_size
-        self.update()
-
-    def _update_resolution(self, resolution: str) -> None:
-        self._resolution = int(resolution)
-        self.update()
-
     def paintEvent(self, a0: object) -> None:
+        # ...apparently it's best practice to create one of these each event...
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-
-        # Determine the side length
-        side = min(self.width(), self.height()) - 2 * self._padding
-
-        self._paint_fov(painter, side)
-        self._paint_dimensions(painter, side)
-
-    def _paint_fov(self, painter: QPainter, side_length: int) -> None:
-        painter.setPen(QPen(QColor(180, 180, 180), 2))
-        painter.setBrush(QColor(40, 40, 40))
-        painter.drawRect(self._padding, self._padding, side_length, side_length)
-
-    def _paint_dimensions(self, painter: QPainter, side_length: int) -> None:
-        # Set the font size
         font = painter.font()
         font.setPointSize(9)
         painter.setFont(font)
-        fm = painter.fontMetrics()
-        label_h = fm.height()
 
-        if self._pixel_size:
-            fov_um = self._resolution * self._pixel_size
-            label = f"{fov_um:.1f} \u00b5m ({self._resolution} px)"
-        else:
-            label = f"{self._resolution} px"
-
-        # Width dimension (along bottom edge)
-        bot_y = self._padding + side_length - 4 - label_h
-        self._paint_bot_y = bot_y
-        painter.save()
-        painter.translate(self._padding, bot_y)
-        self._paint_dimension(painter, side_length, label)
-        painter.restore()
-
-        # Height dimension (along right edge, same thing but rotated)
-        right_x = self._padding + side_length - 4 - label_h
-        painter.save()
-        painter.translate(right_x, self._padding + side_length)
-        painter.rotate(-90)
-        self._paint_dimension(painter, side_length, label)
-        painter.restore()
-
+        # First paint FOV visual...
+        self._paint_fov(painter)
+        # ...and then paint the pixel visual
+        self._paint_pixel(painter)
         painter.end()
 
-    def _paint_dimension(self, painter: QPainter, length: int, label: str) -> None:
-        """Draw a horizontal dimension line in the painter's current coordinate system.
-
-        Assumes the painter has been translated (and optionally rotated) so that
-        the dimension runs along the x-axis from 0 to ``length``, with text
-        centered vertically at y=0..text_h.
-        """
-        fm = painter.fontMetrics()
-        text_h = fm.height()
-        label_w = fm.horizontalAdvance(label)
-        dim_color = QColor(180, 180, 180)
-        dim_pen = QPen(dim_color, 1)
-        arrow_size = 6
-        inset = 14
-
-        line_y = text_h // 2
-        left_x = inset
-        right_x = length - inset
-        center_x = length // 2
-
-        # Lines from arrows to label gap
-        painter.setPen(dim_pen)
-        painter.drawLine(left_x, line_y, center_x - label_w // 2 - 4, line_y)
-        painter.drawLine(center_x + label_w // 2 + 4, line_y, right_x, line_y)
-
-        # Left arrow
-        painter.setBrush(dim_color)
-        painter.drawPolygon(
-            QPolygonF(
-                [
-                    QPointF(left_x, line_y),
-                    QPointF(left_x + arrow_size, line_y - arrow_size / 2),
-                    QPointF(left_x + arrow_size, line_y + arrow_size / 2),
-                ]
-            )
-        )
-        # Right arrow
-        painter.drawPolygon(
-            QPolygonF(
-                [
-                    QPointF(right_x, line_y),
-                    QPointF(right_x - arrow_size, line_y - arrow_size / 2),
-                    QPointF(right_x - arrow_size, line_y + arrow_size / 2),
-                ]
-            )
-        )
-
-        # Label text
-        painter.setBrush(Qt.BrushStyle.NoBrush)
-        painter.setPen(dim_color)
-        painter.drawText(
-            0,
-            0,
-            length,
-            text_h,
-            Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter,
-            label,
-        )
-
-
-class _FOVCanvasZoomable(QWidget):
-    """Canvas that visualizes the field of view."""
-
-    def __init__(
-        self, parent: QWidget | None = None, mmcore: CMMCorePlus | None = None
-    ) -> None:
-        super().__init__(parent)
-        self._mmcore = mmcore or CMMCorePlus.instance()
-        self._resolution: int = 512
-        self._pixel_size: float | None = self._mmcore.getPixelSizeUm()
-        self._zoom: float = 1.0
-        self._padding = 10  # Minimum number of pixels between FOV box and widget edge
-        self._pixel_side = 40
-
-        self.setMinimumSize(150, 150)
-        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        self.setToolTip("Note: Not to scale")
-
-        self._mmcore.events.pixelSizeChanged.connect(self._update_pixel_size)
-        self._mmcore.events.systemConfigurationLoaded.connect(self._try_enable)
-        self._try_enable()
-
     def _try_enable(self) -> None:
-        dev_present = "OSc-LSM" in self._mmcore.getLoadedDevices()
-        self.setEnabled(dev_present)
+        self.setEnabled("OSc-LSM" in self._mmcore.getLoadedDevices())
+        self._base_pixel_size = self._mmcore.getPixelSizeUm()
 
-        if not dev_present:
-            return
-
-        self._mmcore.events.devicePropertyChanged("OSc-LSM", "LSM-Resolution").connect(
-            self._update_resolution
-        )
-        self._mmcore.events.devicePropertyChanged("OSc-LSM", "LSM-ZoomFactor").connect(
-            self._update_zoom
-        )
-
-    def _update_pixel_size(self, new_size: float) -> None:
-        self._pixel_size = new_size
+    def _update(self, *args: Any, **kwargs: Any) -> None:
+        # self.update() doesen't take any of the params that will be passed listening to
+        # the core events
         self.update()
 
-    def _update_resolution(self, resolution: str) -> None:
-        self._resolution = int(resolution)
-        self.update()
+    @property
+    def _resolution(self) -> int:
+        return int(self._mmcore.getProperty("OSc-LSM", "LSM-Resolution"))
 
-    def _update_zoom(self, zoom: str) -> None:
-        self._zoom = float(zoom)
-        self.update()
+    @property
+    def _zoom(self) -> float:
+        return float(self._mmcore.getProperty("OSc-LSM", "LSM-ZoomFactor"))
 
-    def paintEvent(self, a0: object) -> None:
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+    @staticmethod
+    def _draw_arrowhead(
+        painter: QPainter,
+        tip: tuple[float, float],
+        base: tuple[float, float],
+    ) -> None:
+        """Draw a triangular arrowhead.
 
-        # Determine the side length
-        side = min(self.width(), self.height()) - 2 * self._padding
-        side = int(side / self._zoom)
-
-        self._paint_fov(painter, side)
-        self._paint_dimensions(painter, side)
-
-    def _paint_fov(self, painter: QPainter, side_length: int) -> None:
-        painter.setPen(
-            QPen(QApplication.palette().color(QPalette.ColorRole.WindowText), 1)
+        Parameters
+        ----------
+        painter: QPainter
+            The painter drawing the arrow.
+        tip: tuple[float, float]
+            The (x, y) coordinate of the tip of the arrow.
+        base: tuple[float, float]
+            The (x, y) center of the base edge.
+        """
+        dx = base[0] - tip[0]
+        dy = base[1] - tip[1]
+        length = (dx**2 + dy**2) ** 0.5
+        half_w = length / 2
+        # Perpendicular to tip→base, scaled to half-width
+        px, py = -dy / length * half_w, dx / length * half_w
+        painter.drawPolygon(
+            QPolygonF(
+                [
+                    QPointF(tip[0], tip[1]),
+                    QPointF(base[0] + px, base[1] + py),
+                    QPointF(base[0] - px, base[1] - py),
+                ]
+            )
         )
+
+    def _paint_fov(self, painter: QPainter) -> None:
+        """Visualizes FOV information on the canvas."""
+        fm = painter.fontMetrics()
+        edge_color = QApplication.palette().color(QPalette.ColorRole.WindowText)
+        # FOV size: most of the canvas by default, scales with zoom
+        fov_side = min(self.width(), self.height()) - 2 * self._fov_padding
+        fov_side = int(fov_side / self._zoom)
+
+        # STEP 1: Draw the rectangle
+        painter.setPen(QPen(edge_color, 2))
         painter.setBrush(QApplication.palette().mid())
         painter.drawRect(
-            (self.width() - side_length) // 2,
-            (self.height() - side_length) // 2,
-            side_length,
-            side_length,
+            (self.width() - fov_side) // 2,
+            (self.height() - fov_side) // 2,
+            fov_side,
+            fov_side,
         )
 
-        painter.drawLine(
-            self.width() // 2 - (self._pixel_side // 2),
-            self.height() // 2 - self._pixel_side,
-            self.width() // 2 - (self._pixel_side // 2),
-            self.height() // 2 + self._pixel_side,
-        )
-        painter.drawLine(
-            self.width() // 2 + (self._pixel_side // 2),
-            self.height() // 2 - self._pixel_side,
-            self.width() // 2 + (self._pixel_side // 2),
-            self.height() // 2 + self._pixel_side,
-        )
-        painter.drawLine(
-            self.width() // 2 - self._pixel_side,
-            self.height() // 2 - (self._pixel_side // 2),
-            self.width() // 2 + self._pixel_side,
-            self.height() // 2 - (self._pixel_side // 2),
-        )
-        painter.drawLine(
-            self.width() // 2 - self._pixel_side,
-            self.height() // 2 + (self._pixel_side // 2),
-            self.width() // 2 + self._pixel_side,
-            self.height() // 2 + (self._pixel_side // 2),
-        )
-        painter.setPen(QPen(QApplication.palette().color(QPalette.ColorRole.Accent), 2))
-        painter.setBrush(QApplication.palette().highlight())
-        painter.drawRect(
-            self.width() // 2 - (self._pixel_side // 2),
-            self.height() // 2 - (self._pixel_side // 2),
-            self._pixel_side,
-            self._pixel_side,
-        )
-
-        # "FOV" label in top-left corner of FOV rectangle
-        font = painter.font()
-        font.setPointSize(9)
-        painter.setFont(font)
-        fm = painter.fontMetrics()
-        fov_x = (self.width() - side_length) // 2
-        fov_y = (self.height() - side_length) // 2
-        text_margin = 4
-        painter.setPen(QApplication.palette().color(QPalette.ColorRole.WindowText))
-        painter.setBrush(Qt.BrushStyle.NoBrush)
-        painter.drawText(fov_x + text_margin, fov_y + text_margin + fm.ascent(), "FOV")
-
-        # "Pixel" label centered in the pixel square
-        px_x = self.width() // 2 - (self._pixel_side // 2)
-        px_y = self.height() // 2 - (self._pixel_side // 2)
-        painter.setPen(QApplication.palette().color(QPalette.ColorRole.Accent))
-        painter.drawText(
-            px_x,
-            px_y,
-            self._pixel_side,
-            self._pixel_side,
-            Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter,
-            "Pixel",
-        )
-
-    def _paint_dimensions(self, painter: QPainter, side_length: int) -> None:
-        # Set the font size
-        font = painter.font()
-        font.setPointSize(9)
-        painter.setFont(font)
-        fm = painter.fontMetrics()
-        label_h = fm.height()
-
+        # STEP 2: Draw the label
+        pixel_size = self._mmcore.getPixelSizeUm()
         if pixel_size := self._mmcore.getPixelSizeUm():
             fov_um = self._resolution * pixel_size
-            label = f"{fov_um:.1f} \u00b5m"
-            # label = f"{fov_um:.1f} \u00b5m ({self._resolution} px)"
+            label = f"FOV: {fov_um:.1f} \u00b5m"
         else:
-            label = f"{self._resolution} px"
+            label = f"FOV: {self._resolution} px"
+        painter.setPen(QPen(edge_color, 1))
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawText(0, self.height() - fm.descent(), label)
 
-        # FOV Width dimension (along bottom edge)
-        left = (self.width() - side_length) // 2
-        bottom = (self.height() + side_length) // 2 - 4 - label_h
-        painter.save()
-        painter.translate(left, bottom)
-        self._paint_dimension(painter, side_length, label)
-        painter.restore()
+        # STEP 3.1: Witness lines
+        # Only drawn if the witness arrow can fit between the text label and the FOV
+        fov_left = int((self.width() - fov_side) / 2)
+        text_right = fm.horizontalAdvance(label) + 4
+        if fov_left < text_right + self._arrow_length:
+            return
+        witness_y = self.height() - fm.descent() - fm.height() // 2
+        # Left witness line
+        painter.setPen(QPen(edge_color, 1))
+        painter.setBrush(edge_color)
+        painter.drawLine(text_right, witness_y, fov_left, witness_y)
+        self._draw_arrowhead(
+            painter,
+            (fov_left, witness_y),  # tip
+            (fov_left - self._arrow_length, witness_y),  # base
+        )
+        # Right witness line
+        fov_right = int((self.width() + fov_side) / 2)
+        painter.drawLine(fov_right, witness_y, fov_right + 10, witness_y)
+        painter.setBrush(edge_color)
+        self._draw_arrowhead(
+            painter,
+            (fov_right, witness_y),
+            (fov_right + self._arrow_length, witness_y),
+        )
 
-        # FOV Height dimension (along right edge, same thing but rotated)
-        right = (self.width() + side_length) // 2 - 4 - label_h
-        painter.save()
-        painter.translate(right, self.height() // 2 + side_length // 2)
-        painter.rotate(-90)
-        self._paint_dimension(painter, side_length, label)
-        painter.restore()
+        # STEP 3.2: Dashed lines to pixel
+        midlight = QApplication.palette().color(QPalette.ColorRole.Midlight)
+        dash_pen = QPen(midlight, 1, Qt.PenStyle.DashLine)
+        painter.setPen(dash_pen)
+        fov_bottom = int((self.height() + fov_side) / 2)
+        painter.drawLine(int(fov_left), int(fov_bottom), int(fov_left), witness_y)
+        painter.drawLine(int(fov_right), int(fov_bottom), int(fov_right), witness_y)
 
-        if pixel_size := self._mmcore.getPixelSizeUm():
-            label = f"{pixel_size:.2g} \u00b5m"
-            # label = f"{pixel_size:.2g} \u00b5m ({self._resolution} px)"
-        else:
-            label = f"{self._resolution} px"
-
-        # Pixel Width dimension (along bottom edge)
-        left = (self.width() - self._pixel_side) // 2
-        bottom = (self.height() + self._pixel_side) // 2 + 4
-        painter.save()
-        painter.translate(left, bottom)
-        self._paint_dimension(painter, self._pixel_side, label, inward=True)
-        painter.restore()
-
-        painter.end()
-
-    def _paint_dimension(
-        self,
-        painter: QPainter,
-        length: int,
-        label: str,
-        inward: bool = False,
-    ) -> None:
-        """Draw a horizontal dimension line in the painter's current coordinate system.
-
-        Assumes the painter has been translated (and optionally rotated) so that
-        the dimension runs along the x-axis from 0 to ``length``, with text
-        centered vertically at y=0..text_h.
-
-        When *inward* is True, the arrows point towards each other and the
-        lines extend outside the measured segment.
-        """
+    def _paint_pixel(self, painter: QPainter) -> None:
+        """Visualizes pixel information on the canvas."""
         fm = painter.fontMetrics()
-        text_h = fm.height()
-        label_w = fm.horizontalAdvance(label)
-        dim_color = QColor(180, 180, 180)
-        dim_pen = QPen(dim_color, 1)
-        arrow_size = 6
-        inset = 14
+        accent_color = QApplication.palette().color(QPalette.ColorRole.Accent)
+        # Pixel size: scales with pixel size(zoom & resolution)
+        zoom_factor = self._base_pixel_size / self._mmcore.getPixelSizeUm()
+        pixel_side = self._pixel_base_side_length // zoom_factor
 
-        line_y = text_h // 2
-        left_x = inset
-        right_x = length - inset
-        center_x = length // 2
+        # STEP 1: Draw the rectangle
+        painter.setPen(QPen(accent_color, 2))
+        painter.setBrush(QApplication.palette().highlight())
+        painter.drawRect(
+            int((self.width() - pixel_side) // 2),  # x
+            int((self.height() - pixel_side) // 2),  # y
+            int(pixel_side),  # w
+            int(pixel_side),  # h
+        )
 
-        painter.setPen(dim_pen)
-
-        if inward:
-            # Lines extend outside the segment
-            painter.drawLine(-inset, line_y, 0, line_y)
-            painter.drawLine(length, line_y, length + inset, line_y)
-
-            # Left arrow pointing right (inward), tip at 0
-            painter.setBrush(dim_color)
-            painter.drawPolygon(
-                QPolygonF(
-                    [
-                        QPointF(0, line_y),
-                        QPointF(-arrow_size, line_y - arrow_size / 2),
-                        QPointF(-arrow_size, line_y + arrow_size / 2),
-                    ]
-                )
-            )
-            # Right arrow pointing left (inward), tip at length
-            painter.drawPolygon(
-                QPolygonF(
-                    [
-                        QPointF(length, line_y),
-                        QPointF(length + arrow_size, line_y - arrow_size / 2),
-                        QPointF(length + arrow_size, line_y + arrow_size / 2),
-                    ]
-                )
-            )
-        else:
-            # Lines from arrows to label gap
-            painter.drawLine(left_x, line_y, center_x - label_w // 2 - 4, line_y)
-            painter.drawLine(center_x + label_w // 2 + 4, line_y, right_x, line_y)
-
-            # Left arrow pointing left (outward)
-            painter.setBrush(dim_color)
-            painter.drawPolygon(
-                QPolygonF(
-                    [
-                        QPointF(left_x, line_y),
-                        QPointF(left_x + arrow_size, line_y - arrow_size / 2),
-                        QPointF(left_x + arrow_size, line_y + arrow_size / 2),
-                    ]
-                )
-            )
-            # Right arrow pointing right (outward)
-            painter.drawPolygon(
-                QPolygonF(
-                    [
-                        QPointF(right_x, line_y),
-                        QPointF(right_x - arrow_size, line_y - arrow_size / 2),
-                        QPointF(right_x - arrow_size, line_y + arrow_size / 2),
-                    ]
-                )
-            )
-
-        # Label text
+        # STEP 2: Draw the label
+        pixel_size = self._mmcore.getPixelSizeUm()
+        if pixel_size == 0:
+            # FIXME: Log a warning?
+            return
+        label = f"Pixel: {pixel_size:.2g} \u00b5m"
+        painter.setPen(QPen(accent_color, 1))
         painter.setBrush(Qt.BrushStyle.NoBrush)
-        painter.setPen(dim_color)
-        painter.drawText(
-            0,
-            0,
-            length,
-            text_h,
-            Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter,
-            label,
+        painter.drawText(0, fm.ascent(), label)
+
+        # STEP 3.1: Witness lines
+        # Only drawn if the witness arrow can fit between the text label and the pixel
+        px_left = int((self.width() - pixel_side) / 2)
+        text_right = fm.horizontalAdvance(label) + 4
+        if px_left < text_right + self._arrow_length:
+            return
+        witness_y = fm.height() // 2
+        # Left witness line
+        painter.setPen(QPen(accent_color, 1))
+        painter.setBrush(accent_color)
+        painter.drawLine(text_right, witness_y, px_left, witness_y)
+        self._draw_arrowhead(
+            painter,
+            (px_left, witness_y),  # tip
+            (px_left - self._arrow_length, witness_y),  # base
+        )
+        # Right witness line
+        px_right = int((self.width() + pixel_side) / 2)
+        painter.drawLine(px_right, witness_y, px_right + 10, witness_y)
+        painter.setBrush(accent_color)
+        self._draw_arrowhead(
+            painter,
+            (px_right, witness_y),
+            (px_right + self._arrow_length, witness_y),
         )
 
-
-class _FOVCanvasWithInset(_FOVCanvas):
-    """FOV canvas with a zoomed inset showing pixel detail."""
-
-    def paintEvent(self, a0: object) -> None:
-        super().paintEvent(a0)
-
-        side = min(self.width(), self.height()) - 2 * self._padding
-        fov_x = self._padding
-        fov_y = self._padding
-        px_size = max(side / self._resolution, MIN_PIXEL_SIZE)
-
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        font = painter.font()
-        font.setPointSize(9)
-        painter.setFont(font)
-        fm = painter.fontMetrics()
-        text_h = fm.height()
-        arrow_size = 6
-        dim_color = QColor(180, 180, 180)
-        dim_pen = QPen(dim_color, 1)
-
-        # Blue pixel rectangle in top-left of FOV
-        painter.setPen(QPen(QColor(0, 180, 255), 2))
-        painter.setBrush(QColor(0, 180, 255, 80))
-        painter.drawRect(fov_x, fov_y, int(px_size), int(px_size))
-
-        # Inset layout (centered in the FOV)
-        inset_side = side // 3
-        inset_x = fov_x + (side - inset_side) // 2
-        inset_y = fov_y + (side - inset_side) // 2
-
-        # Callout lines from actual pixel to inset
-        painter.setPen(QPen(QColor(180, 180, 180, 100), 1, Qt.PenStyle.DashLine))
-        painter.setBrush(Qt.BrushStyle.NoBrush)
-        px_bottom = fov_y + int(px_size)
-        px_right = fov_x + int(px_size)
-        painter.drawLine(px_right, fov_y, inset_x + inset_side, inset_y)
-        painter.drawLine(fov_x, px_bottom, inset_x, inset_y + inset_side)
-
-        # Inset background
-        painter.setPen(QPen(QColor(180, 180, 180), 1))
-        painter.setBrush(QColor(30, 30, 30))
-        painter.drawRect(inset_x, inset_y, inset_side, inset_side)
-
-        # Enlarged pixel (centered in inset, ~40% of inset size)
-        enlarged_px = inset_side * 2 // 5
-        epx_x = inset_x + (inset_side - enlarged_px) // 2
-        epx_y = inset_y + (inset_side - enlarged_px) // 2
-        painter.setPen(QPen(QColor(0, 180, 255), 2))
-        painter.setBrush(QColor(0, 180, 255, 80))
-        painter.drawRect(epx_x, epx_y, enlarged_px, enlarged_px)
-
-        # Pixel dimension arrows (below the enlarged pixel)
-        if self._pixel_size:
-            px_label = f"{self._pixel_size:.2f} \u00b5m"
-        else:
-            px_label = "1 px"
-        px_label_w = fm.horizontalAdvance(px_label)
-        dim_y = epx_y + enlarged_px + 4 + text_h // 2
-        dim_left = epx_x
-        dim_right = epx_x + enlarged_px
-        dim_cx = (dim_left + dim_right) // 2
-
-        painter.setPen(dim_pen)
-        painter.drawLine(dim_left, dim_y, dim_cx - px_label_w // 2 - 4, dim_y)
-        painter.drawLine(dim_cx + px_label_w // 2 + 4, dim_y, dim_right, dim_y)
-        # Left arrow
-        painter.setBrush(dim_color)
-        painter.drawPolygon(
-            QPolygonF(
-                [
-                    QPointF(dim_left, dim_y),
-                    QPointF(dim_left + arrow_size, dim_y - arrow_size / 2),
-                    QPointF(dim_left + arrow_size, dim_y + arrow_size / 2),
-                ]
-            )
-        )
-        # Right arrow
-        painter.drawPolygon(
-            QPolygonF(
-                [
-                    QPointF(dim_right, dim_y),
-                    QPointF(dim_right - arrow_size, dim_y - arrow_size / 2),
-                    QPointF(dim_right - arrow_size, dim_y + arrow_size / 2),
-                ]
-            )
-        )
-        # Label
-        painter.setBrush(Qt.BrushStyle.NoBrush)
-        painter.setPen(dim_color)
-        painter.drawText(
-            dim_left,
-            dim_y - text_h // 2,
-            enlarged_px,
-            text_h,
-            Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter,
-            px_label,
-        )
-
-        painter.end()
+        # STEP 3.2: Dashed lines to pixel
+        midlight = QApplication.palette().color(QPalette.ColorRole.Midlight)
+        dash_pen = QPen(midlight, 1, Qt.PenStyle.DashLine)
+        painter.setPen(dash_pen)
+        px_top = int((self.height() - pixel_side) / 2)
+        painter.drawLine(int(px_left), int(px_top), int(px_left), witness_y)
+        painter.drawLine(int(px_right), int(px_top), int(px_right), witness_y)
 
 
-class _PixelCanvas(_FOVCanvas):
-    """Pixel-centric canvas showing a 3x3 grid with FOV dimension annotations."""
-
-    def paintEvent(self, a0: object) -> None:
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-
-        font = painter.font()
-        font.setPointSize(9)
-        painter.setFont(font)
-        fm = painter.fontMetrics()
-        text_h = fm.height()
-
-        dim_color = QColor(180, 180, 180)
-        dim_pen = QPen(dim_color, 1)
-        arrow_size = 6
-        tick_half = 5
-
-        # Space for witness line annotations on top and left
-        dim_margin = text_h + 16
-
-        # Grid geometry
-        available = min(self.width(), self.height()) - 2 * self._padding - dim_margin
-        cell = available / 3
-        gx = self._padding + dim_margin
-        gy = self._padding + dim_margin
-        grid_extent = 3 * cell
-
-        # -- Grid lines (omit bottom and right closing borders) --
-        painter.setPen(QPen(QColor(120, 120, 120), 1))
-        painter.setBrush(Qt.BrushStyle.NoBrush)
-        for i in range(3):
-            y = int(gy + i * cell)
-            painter.drawLine(int(gx), y, int(gx + grid_extent), y)
-        for i in range(3):
-            x = int(gx + i * cell)
-            painter.drawLine(x, int(gy), x, int(gy + grid_extent))
-
-        # -- Blue pixel (top-left cell) --
-        painter.setPen(QPen(QColor(0, 180, 255), 2))
-        painter.setBrush(QColor(0, 180, 255, 80))
-        painter.drawRect(int(gx), int(gy), int(cell), int(cell))
-
-        # -- Pixel size witness line (inside blue cell) --
-        if self._pixel_size:
-            px_label = f"{self._pixel_size:.2f} \u00b5m"
-        else:
-            px_label = "1 px"
-        painter.save()
-        painter.translate(int(gx), int(gy + cell - 4 - text_h))
-        self._paint_dimension(painter, int(cell), px_label)
-        painter.restore()
-
-        # -- FOV dimension label --
-        if self._pixel_size:
-            fov_um = self._resolution * self._pixel_size
-            fov_label = f"{fov_um:.1f} \u00b5m ({self._resolution} px)"
-        else:
-            fov_label = f"{self._resolution} px"
-        fov_label_w = fm.horizontalAdvance(fov_label)
-
-        # -- Top witness line: tick on left, arrow on right --
-        top_y = int(gy - dim_margin // 2)
-        left_end = int(gx)
-        right_end = int(gx + grid_extent)
-        h_center = int(gx + grid_extent / 2)
-
-        painter.setPen(dim_pen)
-        painter.drawLine(left_end, top_y, h_center - fov_label_w // 2 - 4, top_y)
-        painter.drawLine(h_center + fov_label_w // 2 + 4, top_y, right_end, top_y)
-
-        # Perpendicular tick (left end)
-        painter.drawLine(left_end, top_y - tick_half, left_end, top_y + tick_half)
-
-        # Arrow (right end)
-        painter.setBrush(dim_color)
-        painter.drawPolygon(
-            QPolygonF(
-                [
-                    QPointF(right_end, top_y),
-                    QPointF(right_end - arrow_size, top_y - arrow_size / 2),
-                    QPointF(right_end - arrow_size, top_y + arrow_size / 2),
-                ]
-            )
-        )
-
-        # Label
-        painter.setBrush(Qt.BrushStyle.NoBrush)
-        painter.setPen(dim_color)
-        painter.drawText(
-            left_end,
-            top_y - text_h // 2,
-            int(grid_extent),
-            text_h,
-            Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter,
-            fov_label,
-        )
-
-        # -- Left witness line: tick on top, arrow on bottom --
-        left_x = int(gx - dim_margin // 2)
-        top_end = int(gy)
-        bottom_end = int(gy + grid_extent)
-        v_center = int(gy + grid_extent / 2)
-
-        painter.setPen(dim_pen)
-        painter.drawLine(left_x, top_end, left_x, v_center - fov_label_w // 2 - 4)
-        painter.drawLine(left_x, v_center + fov_label_w // 2 + 4, left_x, bottom_end)
-
-        # Perpendicular tick (top end)
-        painter.drawLine(left_x - tick_half, top_end, left_x + tick_half, top_end)
-
-        # Arrow (bottom end)
-        painter.setBrush(dim_color)
-        painter.drawPolygon(
-            QPolygonF(
-                [
-                    QPointF(left_x, bottom_end),
-                    QPointF(left_x - arrow_size / 2, bottom_end - arrow_size),
-                    QPointF(left_x + arrow_size / 2, bottom_end - arrow_size),
-                ]
-            )
-        )
-
-        # Label (rotated)
-        painter.save()
-        painter.translate(left_x, v_center)
-        painter.rotate(-90)
-        painter.setBrush(Qt.BrushStyle.NoBrush)
-        painter.setPen(dim_color)
-        painter.drawText(
-            -int(grid_extent) // 2,
-            -text_h // 2,
-            int(grid_extent),
-            text_h,
-            Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter,
-            fov_label,
-        )
-        painter.restore()
-
-        painter.end()
-
-
-class ImageCollectionParameters(QWidget):
+class OpenScanParameters(QWidget):
     """Widget controlling OpenScan Image Collection parameters.
 
     TODO: Add
@@ -700,39 +258,50 @@ class ImageCollectionParameters(QWidget):
         self._mmcore = mmcore or CMMCorePlus.instance()
         self._dev: Device | None = None
 
-        # -- Widgets --
+        # -- Widgets -- #
+        self._layout = QFormLayout(self)
+
         self._resolution = QComboBox()
-        self._zoom = QLabeledDoubleSlider()
+        self._resolution.currentIndexChanged.connect(self._set_resolution_in_core)
+        self._layout.addRow("Resolution: ", self._resolution)
+
+        self._zoom = QDoubleSpinBox()
+        self._zoom.setSingleStep(0.25)
+        self._zoom.valueChanged.connect(self._set_zoom_in_core)
+        self._layout.addRow("Zoom Factor: ", self._zoom)
+
         self._px_time = QComboBox()
+        self._px_time.currentIndexChanged.connect(self._set_px_time_in_core)
+        self._layout.addRow("Pixel Time: ", self._px_time)
+
         self._px_rate = QComboBox()
+        self._px_rate.currentIndexChanged.connect(self._set_px_rate_in_core)
+        self._layout.addRow("Pixel Rate: ", self._px_rate)
+
         self._line_scan_time = QLabel()
-        self._canvas = _FOVCanvasZoomable(mmcore=self._mmcore)
+        self._layout.addRow("Line Scan Time: ", self._line_scan_time)
+
         self._show_canvas = QPushButton("Show")
         self._show_canvas.setCheckable(True)
         self._show_canvas.toggled.connect(self._toggle_canvas_visibility)
-        self._toggle_canvas_visibility(False)
-
-        # -- Layout --
-        self._layout = QFormLayout(self)
-        self._layout.addRow("Resolution: ", self._resolution)
-        self._layout.addRow("Zoom Factor: ", self._zoom)
-        self._layout.addRow("Pixel Time: ", self._px_time)
-        self._layout.addRow("Pixel Rate: ", self._px_rate)
-        self._layout.addRow("Line Scan Time: ", self._line_scan_time)
         self._layout.addRow("Visual: ", self._show_canvas)
-        # FIXME: A QCollapsible might be nice here but looks off and
-        # self._collapsible = QCollapsible("Visual")
-        # self._collapsible.addWidget(self._canvas)
-        # self._layout.addRow(self._collapsible)
+
+        self._canvas = _ScaledFOVCanvas(mmcore=self._mmcore)
+        self._toggle_canvas_visibility(False)
         self._layout.addRow(self._canvas)
 
-        # -- Signals --
-        self._resolution.currentIndexChanged.connect(self._set_resolution_in_core)
-        self._zoom.valueChanged.connect(self._set_zoom_in_core)
-        self._px_time.currentIndexChanged.connect(self._set_px_time_in_core)
-        self._px_rate.currentIndexChanged.connect(self._set_px_rate_in_core)
-
-        self._mmcore.events.systemConfigurationLoaded.connect(self._try_enable)
+        # -- Initialization & Signals -- #
+        events = self._mmcore.events
+        events.systemConfigurationLoaded.connect(self._try_enable)
+        events.devicePropertyChanged("OSc-LSM", "LSM-Resolution").connect(
+            self._sync_resolution_from_core
+        )
+        events.devicePropertyChanged("OSc-LSM", "LSM-ZoomFactor").connect(
+            self._sync_zoom_from_core
+        )
+        events.devicePropertyChanged("OSc-LSM", "LSM-PixelRateHz").connect(
+            self._sync_px_rate_from_core
+        )
         self._try_enable()
 
     def _toggle_canvas_visibility(self, toggled: bool) -> None:
@@ -761,18 +330,12 @@ class ImageCollectionParameters(QWidget):
             self._px_rate.clear()
 
         self._line_scan_time.setEnabled(dev_present)
+        self._line_scan_time.clear()
 
-        if self._dev is not None:
-            # Disconnect signals from old device
-            self._mmcore.events.devicePropertyChanged(
-                "OSc-LSM", "LSM-Resolution"
-            ).disconnect(self._sync_resolution_from_core)
-            self._mmcore.events.devicePropertyChanged(
-                "OSc-LSM", "LSM-ZoomFactor"
-            ).disconnect(self._sync_zoom_from_core)
-            self._mmcore.events.devicePropertyChanged(
-                "OSc-LSM", "LSM-PixelRateHz"
-            ).disconnect(self._sync_px_rate_from_core)
+        self._show_canvas.setEnabled(dev_present)
+        # Hide the canvas if shown and no OpenScan
+        if self._show_canvas.isChecked() and not dev_present:
+            self._show_canvas.setChecked(False)
 
         # Done if device isn't present
         if not dev_present:
@@ -805,22 +368,11 @@ class ImageCollectionParameters(QWidget):
                     self._px_time.addItem(f"{round(rate_us, 1)} μs", rate)
                     self._px_rate.addItem(f"{float(rate)} Hz", rate)
                 self._sync_px_rate_from_core(px_rate_prop.value)
-        # Connect signals
-        events = self._mmcore.events
-        events.devicePropertyChanged("OSc-LSM", "LSM-Resolution").connect(
-            self._sync_resolution_from_core
-        )
-        events.devicePropertyChanged("OSc-LSM", "LSM-ZoomFactor").connect(
-            self._sync_zoom_from_core
-        )
-        events.devicePropertyChanged("OSc-LSM", "LSM-PixelRateHz").connect(
-            self._sync_px_rate_from_core
-        )
 
     ## -- Update core from widget -- ##
 
     def _set_resolution_in_core(self, idx: int) -> None:
-        if self._dev is not None and self._res_prop is not None:
+        if self._dev is not None:
             self._mmcore.setProperty(
                 self._dev.label, "LSM-Resolution", self._resolution.itemData(idx)
             )
