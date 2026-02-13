@@ -187,7 +187,9 @@ class _ScaledFOVCanvas(QWidget):
     def _paint_pixel(self, painter: QPainter) -> None:
         """Visualizes pixel information on the canvas."""
         fm = painter.fontMetrics()
-        accent_color = QApplication.palette().color(QPalette.ColorRole.Accent)
+        # QPalette.ColorRole.Accent is great but only available for Qt>6.6
+        color_role = getattr(QPalette.ColorRole, "Accent", QPalette.ColorRole.Highlight)
+        accent_color = QApplication.palette().color(color_role)
         # Pixel size: scales with pixel size(zoom & resolution)
         if (current_um := self._mmcore.getPixelSizeUm()) > 0:
             zoom_factor = self._base_pixel_size / current_um
