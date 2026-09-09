@@ -67,9 +67,10 @@ class SPCRateGraphCanvas(QWidget):
         self.margin_left = 30
         self.margin_right = 10
         self.margin_top = 10
-        self.margin_bottom = 10
+        self.margin_bottom = 25
 
         self._n_ticks = 8
+        self._n_x_ticks = 5
 
         self._values: dict[DeviceProperty, list[float]] = {}
 
@@ -106,11 +107,16 @@ class SPCRateGraphCanvas(QWidget):
         plot_bottom = height - self.margin_bottom
         plot_height = plot_bottom - plot_top
 
+        plot_width = plot_right - plot_left
+
         # Draw grid lines
         painter.setPen(QPen(mid_color, 1))
         for i in range(self._n_ticks):
             y = plot_top + plot_height * i / (self._n_ticks - 1)
             painter.drawLine(QPointF(plot_left, y), QPointF(plot_right, y))
+        for j in range(self._n_x_ticks):
+            x = plot_left + plot_width * j / (self._n_x_ticks - 1)
+            painter.drawLine(QPointF(x, plot_top), QPointF(x, plot_bottom))
 
         # Draw axes
         painter.setPen(QPen(text_color, 2))
@@ -135,6 +141,18 @@ class SPCRateGraphCanvas(QWidget):
             painter.drawText(
                 text_rect,
                 Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter,
+                label,
+            )
+
+        # Draw X-axis labels (right = 0s ago, left = 1s ago)
+        for j in range(self._n_x_ticks):
+            x = plot_left + plot_width * j / (self._n_x_ticks - 1)
+            seconds = (self._n_x_ticks - 1 - j) / (self._n_x_ticks - 1)
+            label = "0s" if j == self._n_x_ticks - 1 else f"-{seconds:g}s"
+            text_rect = QRectF(x - 20, plot_bottom + 2, 40, self.margin_bottom - 4)
+            painter.drawText(
+                text_rect,
+                Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop,
                 label,
             )
 
