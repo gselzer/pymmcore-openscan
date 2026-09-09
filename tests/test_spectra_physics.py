@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 
 from pymmcore_plus import CMMCorePlus
 
-from pymmcore_openscan.widgets.spectra_physics_ds import (
+from pymmcore_openscan.widgets.spectra_physics import (
     LaserControlPanel,
     LaserDiagnosticsPanel,
 )

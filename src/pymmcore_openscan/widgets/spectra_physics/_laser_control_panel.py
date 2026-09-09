@@ -98,13 +98,13 @@ class _LaserGroupBox(QGroupBox):
         top_row.addWidget(self.laser_button, stretch=0)
         top_row.addWidget(self._pulsing_indicator, stretch=1)
 
-        laser_form = QFormLayout()
-        laser_form.addRow("State:", self._laser_state)
-        laser_form.addRow("Power:", self._laser_power)
+        self._laser_form = QFormLayout()
+        self._laser_form.addRow("State:", self._laser_state)
+        self._laser_form.addRow("Power:", self._laser_power)
 
         layout = QVBoxLayout(self)
         layout.addLayout(top_row)
-        layout.addLayout(laser_form)
+        layout.addLayout(self._laser_form)
         layout.addWidget(PowerBarWidget(mmcore=mmcore))
 
         ## -- INITIAL STATE -- ##
@@ -146,6 +146,11 @@ class _LaserGroupBox(QGroupBox):
 
     def _try_enable(self) -> None:
         enabled = _DEVICE_NAME in self._mmcore.getLoadedDevices()
+        # The laser state is nice to show if available
+        self._laser_form.setRowVisible(
+            self._laser_state,
+            enabled and self._mmcore.hasProperty(_DEVICE_NAME, self._STATE_PROP),
+        )
         if enabled:
             self._worker.start()
         else:

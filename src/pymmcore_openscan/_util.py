@@ -9,7 +9,7 @@ from pymmcore_openscan.widgets import (
     OpenScanParameters,
     SPCRateGraph,
 )
-from pymmcore_openscan.widgets.spectra_physics_ds import (
+from pymmcore_openscan.widgets.spectra_physics import (
     LaserControlPanel,
     LaserDiagnosticsPanel,
 )
