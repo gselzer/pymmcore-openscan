@@ -13,33 +13,69 @@ from qtpy.QtWidgets import (
 
 from ._utils import _DEVICE_NAME, _PollingWorker
 
-_DIODE_PROPS = [
-    (_DEVICE_NAME, f"Diode {i} {field}")
-    for i in (1, 2)
-    for field in ("Current (A)", "Temperature (C)", "Accumulated Hours")
-]
-
 
 class _DiodePanel(QGroupBox):
-    def __init__(self, title: str, parent: QWidget | None = None) -> None:
-        super().__init__(title, parent)
+    def __init__(
+        self, diode_num: int, mmcore: CMMCorePlus, parent: QWidget | None = None
+    ) -> None:
+        super().__init__(f"Diode {diode_num}", parent)
+        self._mmcore = mmcore
+        self._diode_num = diode_num
 
-        self._current = QLabel("N/A")
-        self._temperature = QLabel("N/A")
-        self._hours = QLabel("N/A")
+        self._current = QLabel()
+        self._temperature = QLabel()
+        self._hours = QLabel()
 
-        layout = QFormLayout(self)
-        layout.addRow("Current:", self._current)
-        layout.addRow("Temperature:", self._temperature)
-        layout.addRow("Cumulative Hours:", self._hours)
+        self._layout = QFormLayout(self)
+        self._layout.addRow("Current: ", self._current)
+        self._layout.addRow("Temperature: ", self._temperature)
+        self._layout.addRow("Accumulated Hours: ", self._hours)
 
-    def update_field(self, field: str, value: float) -> None:
-        if field == "Current (A)":
-            self._current.setText(f"{value:.3f} A")
-        elif field == "Temperature (C)":
-            self._temperature.setText(f"{value:.1f} °C")
-        elif field == "Accumulated Hours":
-            self._hours.setText(f"{value:.1f} h")
+        props = [
+            (_DEVICE_NAME, f"Diode {diode_num} Current (A)"),
+            (_DEVICE_NAME, f"Diode {diode_num} Temperature (C)"),
+            (_DEVICE_NAME, f"Diode {diode_num} Accumulated Hours"),
+        ]
+        self._worker = _PollingWorker(mmcore, props)
+        self._worker.updated.connect(self._on_updated)
+
+        mmcore.events.systemConfigurationLoaded.connect(self._on_system_config_loaded)
+        self._on_system_config_loaded()
+
+    def _on_system_config_loaded(self) -> None:
+        if _DEVICE_NAME in self._mmcore.getLoadedDevices():
+            # NOTE if we ever support Qt<6.4 we'll need an alternative to setRowVisible
+            has_current = self._mmcore.hasProperty(
+                _DEVICE_NAME, f"Diode {self._diode_num} Current (A)"
+            )
+            self._layout.setRowVisible(self._current, has_current)
+            has_temperature = self._mmcore.hasProperty(
+                _DEVICE_NAME, f"Diode {self._diode_num} Temperature (C)"
+            )
+            self._layout.setRowVisible(self._temperature, has_temperature)
+            has_hours = self._mmcore.hasProperty(
+                _DEVICE_NAME, f"Diode {self._diode_num} Accumulated Hours"
+            )
+            self._layout.setRowVisible(self._hours, has_hours)
+
+            self.setVisible(has_current or has_temperature or has_hours)
+            self._worker.start()
+        else:
+            self.setVisible(True)
+
+            self._current.setText("N/A")
+            self._temperature.setText("N/A")
+            self._hours.setText("N/A")
+
+            self._worker.stop()
+
+    def _on_updated(self, _: str, prop: str, value: str) -> None:
+        if "Current" in prop:
+            self._current.setText(f"{float(value):.3f} A")
+        elif "Temperature" in prop:
+            self._temperature.setText(f"{float(value):.1f} °C")
+        elif "Accumulated Hours" in prop:
+            self._hours.setText(f"{float(value):.1f} h")
 
 
 class DiodeWidget(QWidget):
@@ -49,34 +85,8 @@ class DiodeWidget(QWidget):
         mmcore: CMMCorePlus | None = None,
     ) -> None:
         super().__init__(parent=parent)
-        self._mmcore = mmcore or CMMCorePlus.instance()
-
-        # TODO: Hide some of these panels when no properties are available
-        # (e.g. no diode 2 on MAITAI)
-        self._diode1 = _DiodePanel("Diode 1")
-        self._diode2 = _DiodePanel("Diode 2")
+        mmcore = mmcore or CMMCorePlus.instance()
 
         layout = QHBoxLayout(self)
-        layout.addWidget(self._diode1)
-        layout.addWidget(self._diode2)
-
-        self._worker = _PollingWorker(self._mmcore, _DIODE_PROPS)
-        self._worker.updated.connect(self._on_updated)
-
-        self._mmcore.events.systemConfigurationLoaded.connect(self._try_enable)
-        self._try_enable()
-
-    def _try_enable(self) -> None:
-        enabled = _DEVICE_NAME in self._mmcore.getLoadedDevices()
-        self.setEnabled(enabled)
-        if enabled:
-            self._worker.start()
-        else:
-            self._worker.stop()
-
-    def _on_updated(self, _: str, prop: str, value: str) -> None:
-        for i, panel in enumerate((self._diode1, self._diode2), start=1):
-            prefix = f"Diode {i} "
-            if prop.startswith(prefix):
-                panel.update_field(prop[len(prefix) :], float(value))
-                break
+        layout.addWidget(_DiodePanel(1, mmcore))
+        layout.addWidget(_DiodePanel(2, mmcore))
